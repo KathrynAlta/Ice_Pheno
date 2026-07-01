@@ -107,9 +107,11 @@ source(here::here("source", "00_functions.R"))
       # okay this data starts to look spotty in 2021
 
 # 2b)  Pulling in Daily Temp and Cond from Graham with USGS:
+
     # These CSVs contain data from 2019-2023
     out_cond_dat <- read.csv("Input_Files/Loch_O_daily_conductivity.csv")
     out_temp_dat <- read.csv("Input_Files/Loch_O_daily_temperature.csv")
+
     # Joining those two using FULL join because there are fewer conductivity observations
     out_condTemp_dat19_23 <- full_join(out_cond_dat,out_temp_dat, by = "Date")
     # This CSV contains data from 2011-2019
@@ -132,15 +134,27 @@ source(here::here("source", "00_functions.R"))
   # Plot to sanity check 
       # conductivity: color = "olivedrab4". temperature:  color = "salmon3"
     out_cond_temp_daily %>%
-          filter(waterYear == 2023) %>%
+          # filter(waterYear == 2023) %>%
           ggplot(
               aes(x = Date, 
                   y = cond_uScm
               )
           ) + 
           geom_point(alpha = 0.75, color =  "olivedrab4") + 
-          theme_minimal()  # + 
-          # facet_wrap(~waterYear, scales = "free") 
+          theme_minimal()  + 
+           facet_wrap(~waterYear, scales = "free") 
+
+    out_cond_temp_daily %>%
+          # filter(waterYear == 2023) %>%
+          ggplot(
+              aes(x = Date, 
+                  y = Temperature_C
+              )
+          ) + 
+          geom_point(alpha = 0.75, color =   "salmon3") + 
+          theme_minimal()   + 
+           facet_wrap(~waterYear, scales = "free") 
+
 
 ## KAG 20260630 I think that part of the missing data issue is coming from here in 2c 
 
@@ -173,11 +187,19 @@ source(here::here("source", "00_functions.R"))
 
 ## Katie trouble shooting imputed vs. daily data 202060630 
       TCond_weekly_all %>%
-          filter(waterYear == 2022 | waterYear == 2023) %>%
+          # filter(waterYear == 2022 | waterYear == 2023) %>%
           ggplot(aes(x = Date, y =  temperature_C_weekly)) + 
           geom_point(alpha = 0.75, color = "salmon3") + 
-          theme_minimal() # + 
-      # facet_wrap(~waterYear, scales = "free_x")
+          theme_minimal()  + 
+          facet_wrap(~waterYear, scales = "free_x")
+
+    TCond_weekly_all %>%
+              # filter(waterYear == 2022 | waterYear == 2023) %>%
+              ggplot(aes(x = Date, y =  cond_uScm_weekly)) + 
+              geom_point(alpha = 0.75, color =  "olivedrab4" ) + 
+              theme_minimal()  + 
+              facet_wrap(~waterYear, scales = "free_x")
+
     # weekly temperature until august 2023
       # 2019 goes oct to oct 
       # 2023 only may to oct (guessing the sensor went down somehow)
