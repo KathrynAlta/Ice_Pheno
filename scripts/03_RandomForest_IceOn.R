@@ -2,9 +2,11 @@
 # Random Forest Ice ON  
 #######################################
 
-# NOTE ************************
-# KAG 20260629
-# This is copied and pasted whole sale from ice off script. Needs to be updated to work with different input data and different parameters 
+# NOTES ************************
+
+# KAG 20260629: This is copied and pasted whole sale from ice off script. Needs to be updated to work with different input data and different parameters 
+
+# KAG 20260708: still waiting on tracking some data down from grahm via IAO, work on the model structure with the data you have and you can always add later 
 
 # __________________________________________________
 # 0. Set Up R Environment and data munging 
@@ -15,6 +17,7 @@
         source("source/random_partitions.R")
        
     # Load in data   
+    # --> I think that I want a hydro df, a met df, and an ice df 
 
         # Ice presence, conductivity, water temperature, and flow for full time series 
         full_timeseries <- read.csv("derived_data/00_imputed_data_trimmed_winter.csv")
@@ -30,7 +33,12 @@
     # Looking at data 
         # individual predictors to sanity check 
           full_timeseries   %>%
-            ggplot(aes(x = wy_doy, y = temperature_C_impute)) + 
+            ggplot(
+                aes(
+                    x = wy_doy, 
+                    y = temperature_C_impute
+                )
+            ) + 
             geom_point(alpha = 0.5) + 
             theme_minimal() + 
             facet_wrap(~calYear,scales = "free_x")
