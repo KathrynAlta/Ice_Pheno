@@ -6,8 +6,6 @@
 
 # KAG 20260629: This is copied and pasted whole sale from ice off script. Needs to be updated to work with different input data and different parameters 
 
-# KAG 20260708: still waiting on tracking some data down from grahm via IAO, work on the model structure with the data you have and you can always add later 
-
 # __________________________________________________
 # 0. Set Up R Environment and data munging 
 # __________________________________________________
@@ -17,18 +15,15 @@
         source("source/random_partitions.R")
        
     # Load in data   
-    # --> I think that I want a hydro df, a met df, and an ice df 
+        met_data <- read.csv("derived_data/00_met_daily_fullyr.csv")
+        met_data <- read.csv("derived_data/00_met_daily_fullyr.csv")
 
-        # Ice presence, conductivity, water temperature, and flow for full time series 
-        full_timeseries <- read.csv("derived_data/00_imputed_data_trimmed_winter.csv")
+    # Add Ice data to create the three data frames you are going to work with 
+
+    # Trim data frames to only spring and only since 2014
 
         full_timeseries$Date <- as.POSIXct(full_timeseries$Date)
-        full_timeseries$calYear <- substring(as.character(full_timeseries$Date), 1, 4) %>%
-          as.integer()
 
-        # Create another data frame that contains just the years for which we also have ice observations 
-        loch_raw <- full_timeseries %>%
-            filter(waterYear >= 2014)
 
     # Looking at data 
         # individual predictors to sanity check 
