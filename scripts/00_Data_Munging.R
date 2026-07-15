@@ -165,15 +165,16 @@ source(here::here("source", "00_functions.R"))
           ) %>%
           select(-ActivityConductingOrganizationText) %>% # remove this column because we don't need it anymore 
           distinct(Date, .keep_all = TRUE) %>%
-          mutate(
-              wy_doy = hydro.day(Date) # create a new column for the day of the water year 
-          ) %>%
           addWaterYear() %>% # add water year as a column 
           as_tsibble(., key = waterYear, index = Date) %>% #time series tibble
           fill_gaps() %>%  #makes the missing data implicit
-          select(Date, waterYear, wy_doy, cond_uScm, water_temp_C)  %>%
-          filter(waterYear <= 2011 & waterYear >= 1984) %>% # use the data from graham for 2012 onward and we are only going back to 1984 
+          select(Date, waterYear,  cond_uScm, water_temp_C)  %>%
+          filter(
+              waterYear <= 2011 & 
+              waterYear >= 1984
+          ) %>% # use the data from graham for 2012 onward and we are only going back to 1984 
           mutate(
+                  wy_doy = hydro.day(Date),  # create a new column for the day of the water year      
                   cond_uScm = imputeTS::na_interpolation(cond_uScm, maxgap = 7), # Filling gaps in weekly data with a max gap of interpolation as 7 days
                   water_temp_C = imputeTS::na_interpolation(water_temp_C, maxgap = 7)
                 )
@@ -181,25 +182,25 @@ source(here::here("source", "00_functions.R"))
           str(temp_cond_nwis) # This is weekly data from 1982-2023, but missing temp & cond after 2019
 
           # Plot to sanity check 
-           temp_cond_nwis %>%
-                ggplot(
-                    aes(x = Date, 
-                        y =  water_temp_C
-                    )
-                ) + 
-                geom_point(alpha = 0.75, color = "salmon3") + 
-                theme_minimal()  + 
-                facet_wrap(~waterYear, scales = "free") 
-
-          #   temp_cond_nwis %>%
+          #  temp_cond_nwis %>%
           #       ggplot(
           #           aes(x = Date, 
-          #               y = cond_uScm 
+          #               y =  water_temp_C
           #           )
           #       ) + 
-          #       geom_point(alpha = 0.75, color = "olivedrab4") + 
+          #       geom_point(alpha = 0.75, color = "salmon3") + 
           #       theme_minimal()  + 
           #       facet_wrap(~waterYear, scales = "free") 
+
+            # temp_cond_nwis %>%
+            #     ggplot(
+            #         aes(x = wy_doy, 
+            #             y = cond_uScm 
+            #         )
+            #     ) + 
+            #     geom_point(alpha = 0.75, color = "olivedrab4") + 
+            #     theme_minimal()  + 
+            #     facet_wrap(~waterYear, scales = "free") 
           # okay this data starts to look spotty in 2021
 
     # 2.22)  Pulling in Daily Temp and Cond from Graham with USGS:
@@ -232,8 +233,8 @@ source(here::here("source", "00_functions.R"))
               Date = as.Date(Date, tz = "MST", format = "%Y-%m-%d")
           ) %>% 
           addWaterYear() %>% # add water year as a column 
-          mutate(wy_doy = hydro.day(Date)) %>% 
           distinct(Date, .keep_all = TRUE) %>%
+          mutate(wy_doy = hydro.day(Date)) %>% 
           rename(
               water_temp_C ="Temperature_C" # change the column names to somethign more manageable 
           ) %>%
@@ -272,10 +273,10 @@ source(here::here("source", "00_functions.R"))
                   ) + 
                   geom_point(alpha = 0.75, color =   "salmon3") + 
                   theme_minimal()   + 
-                  # scale_x_date(
-                  #     date_breaks = "2 months",
-                  #     date_labels = "%b"
-                  # ) + 
+                  scale_x_date(
+                      date_breaks = "2 months",
+                      date_labels = "%b"
+                  ) + 
                   facet_wrap(~waterYear, scales = "free") 
 
 
@@ -289,7 +290,31 @@ source(here::here("source", "00_functions.R"))
       # join together all hydro data:
       hydro_daily <- full_join(temp_cond_data_frame , 
                               cumulative_flow_data_frame)
+
+      # add a calendar year column 
+        hydro_daily$calYear <- substring(hydro_daily$Date, 1, 4)
+
+      # Change the order of the columns for clarity 
+        hydro_daily <- hydro_daily %>%
+          select("Date","calYear", "waterYear", "wy_doy", "cond_uScm", "water_temp_C", "Flow", "cumulative_dis")
+
       str(hydro_daily)
+
+      # Plot all together to check 
+      hydro_daily %>%
+          mutate(
+          cond_scaled = scales::rescale(cond_uScm, to = range(c(0, 1), na.rm = TRUE)),
+          temp_scaled = scales::rescale(water_temp_C, to = range(c(0, 1), na.rm = TRUE)), 
+          cumulative_q_scaled = scales::rescale(cumulative_dis, to = range(c(0, 1), na.rm = TRUE)), 
+          q_scaled = scales::rescale(Flow, to = range(c(0, 1), na.rm = TRUE))
+          ) %>%
+          ggplot(aes(x= Date)) + 
+          geom_point(aes(y = cond_scaled), color = "olivedrab4", alpha = 0.75) + 
+          geom_point(aes(y = temp_scaled), color = "salmon3", alpha = 0.75) + 
+          geom_point(aes(y = q_scaled), color = "mediumpurple1", alpha = 0.75) + 
+          geom_point(aes(y = cumulative_q_scaled), color = "mediumpurple4", alpha = 0.75) + 
+          theme_minimal() + 
+      facet_wrap(~calYear, scales = "free")
 
       #save outputs 
       write.csv(hydro_daily, "derived_data/00_hydro_daily_fullyr.csv")
