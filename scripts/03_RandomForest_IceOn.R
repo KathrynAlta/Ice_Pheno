@@ -2,9 +2,9 @@
 # Random Forest Ice ON  
 #######################################
 
-# NOTE ************************
-# KAG 20260629
-# This is copied and pasted whole sale from ice off script. Needs to be updated to work with different input data and different parameters 
+# NOTES ************************
+
+# KAG 20260629: This is copied and pasted whole sale from ice off script. Needs to be updated to work with different input data and different parameters 
 
 # __________________________________________________
 # 0. Set Up R Environment and data munging 
@@ -15,22 +15,25 @@
         source("source/random_partitions.R")
        
     # Load in data   
+        met_data <- read.csv("derived_data/00_met_daily_fullyr.csv")
+        met_data <- read.csv("derived_data/00_met_daily_fullyr.csv")
 
-        # Ice presence, conductivity, water temperature, and flow for full time series 
-        full_timeseries <- read.csv("derived_data/00_imputed_data_trimmed_winter.csv")
+    # Add Ice data to create the three data frames you are going to work with 
+
+    # Trim data frames to only spring and only since 2014
 
         full_timeseries$Date <- as.POSIXct(full_timeseries$Date)
-        full_timeseries$calYear <- substring(as.character(full_timeseries$Date), 1, 4) %>%
-          as.integer()
 
-        # Create another data frame that contains just the years for which we also have ice observations 
-        loch_raw <- full_timeseries %>%
-            filter(waterYear >= 2014)
 
     # Looking at data 
         # individual predictors to sanity check 
           full_timeseries   %>%
-            ggplot(aes(x = wy_doy, y = temperature_C_impute)) + 
+            ggplot(
+                aes(
+                    x = wy_doy, 
+                    y = temperature_C_impute
+                )
+            ) + 
             geom_point(alpha = 0.5) + 
             theme_minimal() + 
             facet_wrap(~calYear,scales = "free_x")
