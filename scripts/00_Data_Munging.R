@@ -27,44 +27,38 @@ source(here::here("source", "00_functions.R"))
 
     # Read in raw data files (annotated from weekly photos )
       ice_binary <- read.csv("raw_data/binary_iceOff_20241001.csv") %>% # read in this data file 
-          select(c(Date, wy_doy, ice.0.1.)) %>% # select only these columns 
-          rename(ice_or_no =ice.0.1.) %>% # remname this columnb 
-          mutate(Date = mdy(Date))
-
-    # Add a water year column 
-      ice_binary<- addWaterYear(ice_binary)
-
-    # Format observed ice data 
-      # recode ice_or_no into 2 classes
-      ice_binary$ice_presence <- ifelse(ice_binary$ice_or_no == 0,
-                                            0,
-                                            1
-      )
-      # set labels for ice
-      ice_binary$ice_presence <- factor(ice_binary$ice_presence,
-                                            levels = c(1, 0),
-                                            labels = c("ice", "no ice")
-      )
+          select(
+              c(Date, wy_doy, ice.0.1.)
+          ) %>% # select only these columns 
+          rename(ice_presence = ice.0.1.) %>% # remname this columnb 
+          mutate(Date = mdy(Date)) %>%
+          addWaterYear() %>%
+          mutate(
+            wy_doy = hydro.day(Date), 
+            calYear = substring(Date, 1, 4)
+          ) %>% 
+          select("Date", "calYear", "waterYear", "wy_doy", "ice_presence")
 
     # Plot to sanity check 
-        # head(ice_binary)
-        # ice_binary %>%
-        #   ggplot(
-        #     aes(
-        #       x = Date, 
-        #       y = ice_or_no
-        #     )
-        #   ) + 
-        #   geom_point(
-        #     alpha = 0.75, 
-        #     color = "darkslategrey"
-        #   ) + 
-        #   theme_minimal() + 
-        #   scale_x_date(
-        #     date_breaks = "2 months",
-        #     date_labels = "%b"
-        #   ) +
-        #   facet_wrap(~waterYear, scales = "free_x")
+        head(ice_binary)
+        ice_binary %>%
+          filter(waterYear >= 2014) %>%
+          ggplot(
+              aes(
+                x = Date, 
+                y = ice_presence
+              )
+            ) + 
+            geom_point(
+              alpha = 0.75, 
+              color = "darkslategrey"
+            ) + 
+            theme_minimal() + 
+            scale_x_date(
+              date_breaks = "2 months",
+              date_labels = "%b"
+            ) +
+            facet_wrap(~waterYear, scales = "free_x")
 
     # save output df 
     write.csv(ice_binary, "derived_data/00_ice_daily_fullyr.csv")
@@ -101,8 +95,10 @@ source(here::here("source", "00_functions.R"))
         # calculating cumulative discharge for each year by first grouping by water year,
         # and then using the "cumsum" function. Add day of water year for plotting purposes.
         cumulative_dat <- group_by(lv_dat, waterYear) %>%
-          mutate(cumulative_dis = cumsum(Flow), 
-                wy_doy = seq(1:n()))
+          mutate(
+                cumulative_dis = cumsum(Flow), 
+                wy_doy = hydro.day(Date)
+              )
 
         # ungroup the dataframe
         cumulative_dat_ungroup <- cumulative_dat %>%
@@ -302,19 +298,20 @@ source(here::here("source", "00_functions.R"))
 
       # Plot all together to check 
       hydro_daily %>%
+          filter(calYear >= 1984) %>%
           mutate(
-          cond_scaled = scales::rescale(cond_uScm, to = range(c(0, 1), na.rm = TRUE)),
-          temp_scaled = scales::rescale(water_temp_C, to = range(c(0, 1), na.rm = TRUE)), 
-          cumulative_q_scaled = scales::rescale(cumulative_dis, to = range(c(0, 1), na.rm = TRUE)), 
-          q_scaled = scales::rescale(Flow, to = range(c(0, 1), na.rm = TRUE))
+              cond_scaled = scales::rescale(cond_uScm, to = range(c(0, 1), na.rm = TRUE)),
+              temp_scaled = scales::rescale(water_temp_C, to = range(c(0, 1), na.rm = TRUE)), 
+              cumulative_q_scaled = scales::rescale(cumulative_dis, to = range(c(0, 1), na.rm = TRUE)), 
+              q_scaled = scales::rescale(Flow, to = range(c(0, 1), na.rm = TRUE))
           ) %>%
           ggplot(aes(x= Date)) + 
-          geom_point(aes(y = cond_scaled), color = "olivedrab4", alpha = 0.75) + 
-          geom_point(aes(y = temp_scaled), color = "salmon3", alpha = 0.75) + 
-          geom_point(aes(y = q_scaled), color = "mediumpurple1", alpha = 0.75) + 
-          geom_point(aes(y = cumulative_q_scaled), color = "mediumpurple4", alpha = 0.75) + 
-          theme_minimal() + 
-      facet_wrap(~calYear, scales = "free")
+              geom_point(aes(y = cond_scaled), color = "olivedrab4", alpha = 0.75) + 
+              geom_point(aes(y = temp_scaled), color = "salmon3", alpha = 0.75) + 
+              geom_point(aes(y = q_scaled), color = "steelblue1", alpha = 0.75) + 
+              geom_point(aes(y = cumulative_q_scaled), color = "steelblue4", alpha = 0.75) + 
+              theme_minimal() + 
+              facet_wrap(~calYear, scales = "free")
 
       #save outputs 
       write.csv(hydro_daily, "derived_data/00_hydro_daily_fullyr.csv")
@@ -331,156 +328,210 @@ source(here::here("source", "00_functions.R"))
         # # bear lake site ID  =  322  
 
     snotel_raw <- snotel_download(site_id =  322 ,path = tempdir(),  network = "sntl", internal = TRUE)
-    head(snotel_raw)
+    # head(snotel_raw)
 
-snotel <- snotel_raw %>%
-  rename(
-    Date = "date", # change the column names to somethign more manageable 
-    swe = "snow_water_equivalent",
-    precip = "precipitation",
-    precip_cumulative = "precipitation_cumulative",
-    air_temp_max = "temperature_max", 
-    air_temp_min = "temperature_min", 
-    air_temp_mean = "temperature_mean"
-  ) %>%
-  addWaterYear() %>%
-  select( 
-     "waterYear", "Date", "swe", "snow_depth", "precip", "precip_cumulative", "air_temp_max", "air_temp_min", "air_temp_mean"
-  ) %>%
-  filter(waterYear >= 1984) 
+    snotel <- snotel_raw %>%
+      rename( # change the column names to somethign more manageable 
+        Date = "date", 
+        swe = "snow_water_equivalent",
+        precip = "precipitation",
+        precip_cumulative = "precipitation_cumulative"
+      ) %>%
+      addWaterYear() %>% # use custom funtion to add a water year 
+      select( 
+        "waterYear", "Date", "swe", "precip", "precip_cumulative" # select only the columbns you need
+      ) %>% 
+      mutate(
+        Date = as.Date(Date), 
+        calYear = substring(Date, 1, 4), # add calendar year 
+        wy_doy = hydro.day(Date) # add day of hyddro year 
+      ) %>% 
+      filter(waterYear >= 1984) %>% # we are only interested in after 1984
+      mutate(# Filling gaps in weekly data with a max gap of interpolation as 7 days
+        precip = imputeTS::na_interpolation(precip , maxgap = 7), 
+        precip_cumulative = imputeTS::na_interpolation(precip_cumulative , maxgap = 7),
+      )
 
-# NEXT: interpolate to get daily of all these variables for any sections where we only have weekly 
-
-
-str(snotel)
-
-
-
-    # plot to sanity check 
-    # snotel %>%
-    #   ggplot(aes(x = date, y = precipitation)) + 
-    #   geom_line() + 
-    #   theme_minimal() + 
-    #   facet_wrap(~waterYear, scales = "free_x")
-
-    # save output 
-    write.csv(snotel, "derived_data/00_snotel_322.csv")
+          # plot to sanity check 
+          # snotel %>%
+          #   ggplot(
+          #     aes(
+          #       x = Date, 
+          #       y = precip_cumulative
+          #     )
+          #   ) + 
+          #   geom_point(
+          #     alpha = 0.5
+          #   ) + 
+          #   theme_minimal() + 
+          #   facet_wrap(~waterYear, scales = "free_x")
 
 # ______________________
 # 3.2 Daily Weather from met station 
 
     # Weather station data (temp, wind):
     weatherData <- read.csv("raw_data/lvws_met_19911217_20240909.csv")
-    weatherData$datetime <- as.POSIXct(weatherData$datetime)
 
     # Aggregate to air temp and wind speed
     weather_daily <- weatherData %>%
-      mutate(Date = as.POSIXct(datetime)) %>% # Extract the date part
+      mutate( # Extract the date part
+        Date = as.Date(datetime)
+      ) %>% 
       group_by(Date) %>% # Group by date
-      summarise(
+      summarise( # Calculate daily averages 
         airT_mean = mean(airt, na.rm = TRUE),
-        # T_air_6_m_mean = mean(T_air_6_m, na.rm = TRUE),
         airT_max = max(airt, na.rm = TRUE),
         airT_min = min(airt, na.rm = TRUE),
-        # T_air_6_m_max = max(T_air_6_m, na.rm = TRUE),
-        # T_air_6_m_min = min(T_air_6_m, na.rm = TRUE),
         wind_10m_mean = mean(wnd_10, na.rm = TRUE),
         wind_10m_max = max(wnd_10, na.rm = TRUE),
-        # WSpd_6_m_mean = mean(WSpd_6_m, na.rm = TRUE),
-        #SWin_2m6m_daily_mean = mean(SWin_2m6m_mean, na.rm = TRUE)
-      ) %>% addWaterYear()
+      ) %>% 
+      addWaterYear() %>% # Add water year 
+      mutate(
+        calYear = substring(Date, 1, 4), # add calendar year 
+        wy_doy = hydro.day(Date) # add day of hyddro year 
+      ) %>%
+      mutate( # interpolate missing values when there is less than a 7 day gap 
+        airT_mean = imputeTS::na_interpolation(airT_mean, maxgap = 7), 
+        airT_max = imputeTS::na_interpolation(airT_max, maxgap = 7), 
+        airT_min = imputeTS::na_interpolation(airT_min, maxgap = 7), 
+        wind_10m_mean = imputeTS::na_interpolation(wind_10m_mean, maxgap = 7), 
+        wind_10m_max = imputeTS::na_interpolation(wind_10m_max, maxgap = 7) 
+      )
 
-    # plot to sanity check 
-    weather_daily %>%
-      ggplot(aes(x = Date, y = airT_mean)) + 
-      geom_line() + 
-      theme_minimal() + 
-      facet_wrap(~waterYear, scales = "free_x")
-
-    # save output 
-    write.csv(weather_daily, "derived_data/00_weather_daily.csv")
+        # plot to sanity check 
+        # weather_daily %>%
+        #   ggplot(
+        #     aes(
+        #       x = Date, 
+        #       y = airT_mean
+        #     )
+        #   ) + 
+        #   geom_line() + 
+        #   theme_minimal() + 
+        #   facet_wrap(~waterYear, scales = "free_x")
 
 # ______________________
 # 3.3 Combine Met Data 
 
+met_daily <- full_join(snotel, weather_daily) %>%
+  select(
+    "Date", "calYear", "waterYear", "wy_doy", "swe", "precip", "precip_cumulative", 
+    "airT_mean", "airT_max", "airT_min", "wind_10m_mean", "wind_10m_max"
+  )
+
+# Plot all together to check 
+  met_daily %>%
+      filter(calYear >= 1984) %>%
+      mutate(
+          swe = scales::rescale(swe, to = range(c(0, 1), na.rm = TRUE)),
+          precip = scales::rescale(precip, to = range(c(0, 1), na.rm = TRUE)), 
+          precip_cumulative = scales::rescale(precip_cumulative, to = range(c(0, 1), na.rm = TRUE)), 
+          airT_mean = scales::rescale(airT_mean, to = range(c(0, .8), na.rm = TRUE)), 
+          airT_max = scales::rescale(airT_max, to = range(c(0, 1), na.rm = TRUE)),
+          airT_min = scales::rescale(airT_min, to = range(c(0, .6), na.rm = TRUE)), 
+          wind_10m_mean = scales::rescale(wind_10m_mean, to = range(c(0, 1), na.rm = TRUE)), 
+          wind_10m_max = scales::rescale(wind_10m_max, to = range(c(0, 1), na.rm = TRUE))
+      ) %>%
+      ggplot(aes(x= Date)) + 
+          geom_point(aes(y = swe), color = "maroon", alpha = 0.75) + 
+          geom_point(aes(y = precip), color = "mediumpurple1", alpha = 0.75) + 
+          geom_point(aes(y = precip_cumulative), color = "mediumpurple4", alpha = 0.75) + 
+          geom_point(aes(y = airT_mean), color = "orangered2", alpha = 0.75) + 
+          geom_point(aes(y = airT_max), color = "orangered4", alpha = 0.75) + 
+          geom_point(aes(y = airT_min), color = "orangered", alpha = 0.75) + 
+          geom_point(aes(y = wind_10m_mean), color = "goldenrod1", alpha = 0.75) + 
+          geom_point(aes(y = wind_10m_max), color = "goldenrod4", alpha = 0.75) + 
+          theme_minimal() + 
+          facet_wrap(~calYear, scales = "free")
+
+  #save outputs 
+      write.csv(met_daily , "derived_data/00_met_daily_fullyr.csv")
 
 
-# __________________________________________________
-# 04. Triming Data frames to time windows 
-# __________________________________________________
 
-# ______________________
-# 4.1 trimming and formatting for spring (ice OFF)
-    # Imputed 1982 - 2024
-    imputed_data_trimmed <- filter_by_year_and_doy(flow_temp_cond_imputed_ice, c(170,288)) # March 18 - July 15
-    # Weekly 1982-2024
-    weekly_data_trimmed <- filter_by_year_and_doy(flow_temp_cond_weekly_ice, c(170,288)) # March 18 - July 15
-    # Daily 2014-2023
-    daily_data_trimmed <- filter_by_year_and_doy(flow_temp_cond_daily_ice, c(170,288)) # March 18 - July 15
 
-    # save trimmed data for spring ice OFF 
-    write.csv(imputed_data_trimmed, "derived_data/00_imputed_data_trimmed_spring.csv")
-    write.csv(weekly_data_trimmed, "derived_data/00_weekly_data_trimmed_spring.csv")
-    write.csv(daily_data_trimmed, "derived_data/00_daily_data_trimmed_spring.csv")
 
-# ______________________
-# 4.2 trimming and formatting for fall (ice ON)
-# extra steps here because we cross the water year boundary 
 
-    # October 1 to December 15
-      # Imputed 1982 - 2024
-      oct_dec_impute <- filter_by_year_and_doy(flow_temp_cond_imputed_ice, c(1,76)) # October 1 - December 15
-      # Weekly 1982-2024
-      oct_dec_weekly <- filter_by_year_and_doy(flow_temp_cond_weekly_ice, c(1,76)) # October 1 - December 15
-      # Daily  2014-2023
-      oct_dec_daily <- filter_by_year_and_doy(flow_temp_cond_daily_ice, c(1,76)) # October 1 - December 15
 
-    # September 15 - October 1 
-        # Imputed 1982 - 2024
-        sept_oct_impute <- filter_by_year_and_doy(flow_temp_cond_imputed_ice, c(349,365)) # September 15 - October 1
-        # Weekly 1982-2024
-        sept_oct_weekly <- filter_by_year_and_doy(flow_temp_cond_weekly_ice, c(349,365)) # September 15 - October 1
-        # Daily 2014-2023
-        sept_oct_daily <- filter_by_year_and_doy(flow_temp_cond_daily_ice, c(349,365)) # September 15 - October 1
+# ***********************************************************************************************************
+# OLD: Instead of trimming here and createing a bunch of intermediate files just save the full data file then trim to waht you want at the top of each script 
 
-    # bind all dates together 
-      sept_dec_impute <- rbind(sept_oct_impute,oct_dec_impute)
-      sept_dec_weekly <- rbind(sept_oct_weekly,oct_dec_weekly)
-      sept_dec_daily <- rbind(sept_oct_daily,oct_dec_daily)
+# # __________________________________________________
+# # 04. Triming Data frames to time windows 
+# # __________________________________________________
 
-    # sorting dates - creating ordered indices for dates
-      ordered_indices_impute <- order(sept_dec_impute$Date)
-      ordered_indices_weekly <- order(sept_dec_weekly$Date)
-      ordered_indices_daily <- order(sept_dec_daily$Date)
+# # ______________________
+# # 4.1 trimming and formatting for spring (ice OFF)
+#     # Imputed 1982 - 2024
+#     imputed_data_trimmed <- filter_by_year_and_doy(flow_temp_cond_imputed_ice, c(170,288)) # March 18 - July 15
+#     # Weekly 1982-2024
+#     weekly_data_trimmed <- filter_by_year_and_doy(flow_temp_cond_weekly_ice, c(170,288)) # March 18 - July 15
+#     # Daily 2014-2023
+#     daily_data_trimmed <- filter_by_year_and_doy(flow_temp_cond_daily_ice, c(170,288)) # March 18 - July 15
 
-    # applying indices to data frames:
-      imputed_data_trimmed_winter <- sept_dec_impute[ordered_indices_impute, ]
-      weekly_data_trimmed_winter <- sept_dec_weekly[ordered_indices_weekly, ]
-      daily_data_trimmed_winter <- sept_dec_daily[ordered_indices_daily, ]
+#     # save trimmed data for spring ice OFF 
+#     write.csv(imputed_data_trimmed, "derived_data/00_imputed_data_trimmed_spring.csv")
+#     write.csv(weekly_data_trimmed, "derived_data/00_weekly_data_trimmed_spring.csv")
+#     write.csv(daily_data_trimmed, "derived_data/00_daily_data_trimmed_spring.csv")
 
-    # Plot to sanity check 
-          weekly_data_trimmed_winter %>%
-                mutate(
-                cond_scaled = scales::rescale(cond_uScm_weekly, to = range(ice_or_no, na.rm = TRUE)),
-                temp_scaled = scales::rescale(temperature_C_weekly, to = range(ice_or_no, na.rm = TRUE)), 
-                cumulative_q_scaled = scales::rescale(cumulative_dis, to = range(ice_or_no, na.rm = TRUE)), 
-                q_scaled = scales::rescale(Flow, to = range(ice_or_no, na.rm = TRUE))
-                ) %>%
-                ggplot(aes(x= Date)) +
-                geom_point(aes(y = ice_or_no), color = "skyblue3", alpha = 0.75) + 
-                geom_point(aes(y = cond_scaled), color = "olivedrab4", alpha = 0.75) + 
-                geom_point(aes(y = temp_scaled), color = "salmon3", alpha = 0.75) + 
-                geom_point(aes(y = q_scaled), color = "mediumpurple1", alpha = 0.75) + 
-                geom_point(aes(y = cumulative_q_scaled), color = "mediumpurple4", alpha = 0.75) + 
-                theme_minimal() + 
-            facet_wrap(~waterYear, scales = "free")
+# # ______________________
+# # 4.2 trimming and formatting for fall (ice ON)
+# # extra steps here because we cross the water year boundary 
 
-    # Create a new data frame putting together imputed and daily to get the full time series 
+#     # October 1 to December 15
+#       # Imputed 1982 - 2024
+#       oct_dec_impute <- filter_by_year_and_doy(flow_temp_cond_imputed_ice, c(1,76)) # October 1 - December 15
+#       # Weekly 1982-2024
+#       oct_dec_weekly <- filter_by_year_and_doy(flow_temp_cond_weekly_ice, c(1,76)) # October 1 - December 15
+#       # Daily  2014-2023
+#       oct_dec_daily <- filter_by_year_and_doy(flow_temp_cond_daily_ice, c(1,76)) # October 1 - December 15
 
-    # save trimmed data for fall ice ON  
-        write.csv(imputed_data_trimmed_winter, "derived_data/00_imputed_data_trimmed_winter.csv")
-        write.csv(weekly_data_trimmed_winter, "derived_data/00_weekly_data_trimmed_winter.csv")
-        write.csv(daily_data_trimmed_winter, "derived_data/00_daily_data_trimmed_winter.csv")
+#     # September 15 - October 1 
+#         # Imputed 1982 - 2024
+#         sept_oct_impute <- filter_by_year_and_doy(flow_temp_cond_imputed_ice, c(349,365)) # September 15 - October 1
+#         # Weekly 1982-2024
+#         sept_oct_weekly <- filter_by_year_and_doy(flow_temp_cond_weekly_ice, c(349,365)) # September 15 - October 1
+#         # Daily 2014-2023
+#         sept_oct_daily <- filter_by_year_and_doy(flow_temp_cond_daily_ice, c(349,365)) # September 15 - October 1
+
+#     # bind all dates together 
+#       sept_dec_impute <- rbind(sept_oct_impute,oct_dec_impute)
+#       sept_dec_weekly <- rbind(sept_oct_weekly,oct_dec_weekly)
+#       sept_dec_daily <- rbind(sept_oct_daily,oct_dec_daily)
+
+#     # sorting dates - creating ordered indices for dates
+#       ordered_indices_impute <- order(sept_dec_impute$Date)
+#       ordered_indices_weekly <- order(sept_dec_weekly$Date)
+#       ordered_indices_daily <- order(sept_dec_daily$Date)
+
+#     # applying indices to data frames:
+#       imputed_data_trimmed_winter <- sept_dec_impute[ordered_indices_impute, ]
+#       weekly_data_trimmed_winter <- sept_dec_weekly[ordered_indices_weekly, ]
+#       daily_data_trimmed_winter <- sept_dec_daily[ordered_indices_daily, ]
+
+#     # Plot to sanity check 
+#           weekly_data_trimmed_winter %>%
+#                 mutate(
+#                 cond_scaled = scales::rescale(cond_uScm_weekly, to = range(ice_or_no, na.rm = TRUE)),
+#                 temp_scaled = scales::rescale(temperature_C_weekly, to = range(ice_or_no, na.rm = TRUE)), 
+#                 cumulative_q_scaled = scales::rescale(cumulative_dis, to = range(ice_or_no, na.rm = TRUE)), 
+#                 q_scaled = scales::rescale(Flow, to = range(ice_or_no, na.rm = TRUE))
+#                 ) %>%
+#                 ggplot(aes(x= Date)) +
+#                 geom_point(aes(y = ice_or_no), color = "skyblue3", alpha = 0.75) + 
+#                 geom_point(aes(y = cond_scaled), color = "olivedrab4", alpha = 0.75) + 
+#                 geom_point(aes(y = temp_scaled), color = "salmon3", alpha = 0.75) + 
+#                 geom_point(aes(y = q_scaled), color = "mediumpurple1", alpha = 0.75) + 
+#                 geom_point(aes(y = cumulative_q_scaled), color = "mediumpurple4", alpha = 0.75) + 
+#                 theme_minimal() + 
+#             facet_wrap(~waterYear, scales = "free")
+
+#     # Create a new data frame putting together imputed and daily to get the full time series 
+
+#     # save trimmed data for fall ice ON  
+#         write.csv(imputed_data_trimmed_winter, "derived_data/00_imputed_data_trimmed_winter.csv")
+#         write.csv(weekly_data_trimmed_winter, "derived_data/00_weekly_data_trimmed_winter.csv")
+#         write.csv(daily_data_trimmed_winter, "derived_data/00_daily_data_trimmed_winter.csv")
 
 
 
