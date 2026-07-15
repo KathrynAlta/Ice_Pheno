@@ -8,17 +8,29 @@
 
     # Load any necessary packages amd functions 
         source("source/00_libraries.R")
-        source("source/random_partitions.R")
+        source("source/00_functions.R")
        
     # Load in data   
+        met_only <- read.csv("derived_data/00_met_daily_fullyr.csv") %>% select(-X)
+        hydro_only <- read.csv("derived_data/00_hydro_daily_fullyr.csv")  %>% select(-X)
+        ice_only <- read.csv("derived_data/00_ice_daily_fullyr.csv") %>% select(-X)
 
-        # Ice presence, conductivity, water temperature, and flow for full time series 
-        full_timeseries <- read.csv("derived_data/00_imputed_data_trimmed_spring.csv")
-        full_timeseries$Date <- as.POSIXct(full_timeseries$Date)
+    # Add Ice data to create the three data frames you are going to work with 
+        met_data_full_timeseries <- full_join(ice_only, met_only)
+        hydro_data_full_timeseries <- full_join(ice_only, hydro_only)
+        sink_data_full_timeseries <- full_join(hydro_data_full_timeseries, met_data_full_timeseries)
 
-        # Create another data frame that contains just the years for which we also have ice observations 
-        loch_raw <- full_timeseries %>%
+    # Trim data frames to only spring and only since 2014
+        met_data <- filter_by_year_and_doy(met_data_full_timeseries, c(170,288))  %>% # March 18 - July 15
             filter(waterYear >= 2014)
+
+        hydro_data <- filter_by_year_and_doy(hydro_data_full_timeseries, c(170,288))  %>% # March 18 - July 15
+            filter(waterYear >= 2014)
+
+        sink_data <- filter_by_year_and_doy(sink_data_full_timeseries, c(170,288))  %>% # March 18 - July 15
+            filter(waterYear >= 2014)
+
+
 
     # # Looking at data 
     #     # individual predictors to sanity check 
