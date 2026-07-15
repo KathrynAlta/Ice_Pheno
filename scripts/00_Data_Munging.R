@@ -5,6 +5,13 @@
 
 # KAG 20260708: restructuring data
 # make three output files: ice, hydro, met each with daily data for the full timeseries, then in each subsequent script you can call the full time series and trim to the season and years that you want in the inital chunk of settnig up code (more explicit what you are using)
+# NEXT STEPS 20260708: 
+# [ ] finish formatting met data to match the ice and hydro data 
+# [ ] remove old data frames from derived data folder 
+# [ ] bring in new data to ice off models and make sure it runs 
+# [ ] write ice on code 
+# [ ] write both ice on and off with multiple models (met, hydro, sink)
+# [ ] pull model importance values 
 
 # __________________________________________________
 # 0. Set Up R Environment and data munging 
@@ -114,19 +121,19 @@ source(here::here("source", "00_functions.R"))
                 )
 
         # Plot to sanity check --> we have all data with no gaps from 1984 to 2025
-          cumulative_flow_df %>%
-            ggplot(
-              aes(
-                x = Date, 
-                y = cumulative_dis
-              )
-            ) + 
-            geom_point(
-              color = "mediumorchid4", 
-              alpha = 0.75
-            )+ 
-            theme_minimal() + 
-            facet_wrap(~waterYear, scales = "free_x")
+          # cumulative_flow_df %>%
+          #   ggplot(
+          #     aes(
+          #       x = Date, 
+          #       y = cumulative_dis
+          #     )
+          #   ) + 
+          #   geom_point(
+          #     color = "mediumorchid4", 
+          #     alpha = 0.75
+          #   )+ 
+          #   theme_minimal() + 
+          #   facet_wrap(~waterYear, scales = "free_x")
 
 # ______________________
 # 2.2 Temp and Conductivity 
@@ -157,11 +164,11 @@ source(here::here("source", "00_functions.R"))
               Date = "ActivityStartDate"
           ) %>%
           select(-ActivityConductingOrganizationText) %>% # remove this column because we don't need it anymore 
+          distinct(Date, .keep_all = TRUE) %>%
           mutate(
               wy_doy = hydro.day(Date) # create a new column for the day of the water year 
           ) %>%
           addWaterYear() %>% # add water year as a column 
-          distinct(Date, .keep_all = TRUE) %>%
           as_tsibble(., key = waterYear, index = Date) %>% #time series tibble
           fill_gaps() %>%  #makes the missing data implicit
           select(Date, waterYear, wy_doy, cond_uScm, water_temp_C)  %>%
@@ -184,15 +191,15 @@ source(here::here("source", "00_functions.R"))
                 theme_minimal()  + 
                 facet_wrap(~waterYear, scales = "free") 
 
-            temp_cond_nwis %>%
-                ggplot(
-                    aes(x = Date, 
-                        y = cond_uScm 
-                    )
-                ) + 
-                geom_point(alpha = 0.75, color = "olivedrab4") + 
-                theme_minimal()  + 
-                facet_wrap(~waterYear, scales = "free") 
+          #   temp_cond_nwis %>%
+          #       ggplot(
+          #           aes(x = Date, 
+          #               y = cond_uScm 
+          #           )
+          #       ) + 
+          #       geom_point(alpha = 0.75, color = "olivedrab4") + 
+          #       theme_minimal()  + 
+          #       facet_wrap(~waterYear, scales = "free") 
           # okay this data starts to look spotty in 2021
 
     # 2.22)  Pulling in Daily Temp and Cond from Graham with USGS:
@@ -243,33 +250,33 @@ source(here::here("source", "00_functions.R"))
       # Plot to sanity check 
           # conductivity: color = "olivedrab4". temperature:  color = "salmon3"
 
-          # temp_cond_df %>%
-          #         ggplot(
-          #             aes(x = Date, 
-          #                 y = cond_uScm
-          #             )
-          #         ) + 
-          #         geom_point(alpha = 0.75, color =  "olivedrab4") + 
-          #         theme_minimal()  + 
-          #         facet_wrap(~waterYear, scales = "free") + 
-          #         scale_x_date(
-          #             date_breaks = "2 months",
-          #             date_labels = "%b"
-          #         ) 
+          temp_cond_df %>%
+                  ggplot(
+                      aes(x = wy_doy, 
+                          y = cond_uScm
+                      )
+                  ) + 
+                  geom_point(alpha = 0.75, color =  "olivedrab4") + 
+                  theme_minimal()  + 
+                  facet_wrap(~waterYear, scales = "free") # + 
+                  # scale_x_date(
+                  #     date_breaks = "2 months",
+                  #     date_labels = "%b"
+                  # ) 
 
-          # temp_cond_df %>%
-          #         ggplot(
-          #             aes(x = Date, 
-          #                 y = water_temp_C
-          #             )
-          #         ) + 
-          #         geom_point(alpha = 0.75, color =   "salmon3") + 
-          #         theme_minimal()   + 
-          #         # scale_x_date(
-          #         #     date_breaks = "2 months",
-          #         #     date_labels = "%b"
-          #         # ) + 
-          #         facet_wrap(~waterYear, scales = "free") 
+          temp_cond_df %>%
+                  ggplot(
+                      aes(x = Date, 
+                          y = water_temp_C
+                      )
+                  ) + 
+                  geom_point(alpha = 0.75, color =   "salmon3") + 
+                  theme_minimal()   + 
+                  # scale_x_date(
+                  #     date_breaks = "2 months",
+                  #     date_labels = "%b"
+                  # ) + 
+                  facet_wrap(~waterYear, scales = "free") 
 
 
 # ______________________
