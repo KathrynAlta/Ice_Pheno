@@ -3,15 +3,10 @@
 #######################################
 # # KAG & BDG 2026-06-15
 
-# KAG 20260708: restructuring data
-# make three output files: ice, hydro, met each with daily data for the full timeseries, then in each subsequent script you can call the full time series and trim to the season and years that you want in the inital chunk of settnig up code (more explicit what you are using)
-# NEXT STEPS 20260708: 
-# [ ] finish formatting met data to match the ice and hydro data 
-# [ ] remove old data frames from derived data folder 
-# [ ] bring in new data to ice off models and make sure it runs 
-# [ ] write ice on code 
-# [ ] write both ice on and off with multiple models (met, hydro, sink)
-# [ ] pull model importance values 
+# This script creates three output files (one for each kind of input data): ice, hydrology, meteorlogical 
+# Each with file contains daily data for the full timeseries, 
+# then in each subsequent script you can call the full time series and trim to the season and years that you want
+# note that code to plot after each step is still included (but commented out) for trouble shooting purposes when adding more data. This code can be deleted when all data has been compiled and checked
 
 # __________________________________________________
 # 0. Set Up R Environment and data munging 
@@ -39,26 +34,26 @@ source(here::here("source", "00_functions.R"))
           ) %>% 
           select("Date", "calYear", "waterYear", "wy_doy", "ice_presence")
 
-    # Plot to sanity check 
-        head(ice_binary)
-        ice_binary %>%
-          filter(waterYear >= 2014) %>%
-          ggplot(
-              aes(
-                x = Date, 
-                y = ice_presence
-              )
-            ) + 
-            geom_point(
-              alpha = 0.75, 
-              color = "darkslategrey"
-            ) + 
-            theme_minimal() + 
-            scale_x_date(
-              date_breaks = "2 months",
-              date_labels = "%b"
-            ) +
-            facet_wrap(~waterYear, scales = "free_x")
+    # # Plot to sanity check 
+    #     head(ice_binary)
+    #     ice_binary %>%
+    #       filter(waterYear >= 2014) %>%
+    #       ggplot(
+    #           aes(
+    #             x = Date, 
+    #             y = ice_presence
+    #           )
+    #         ) + 
+    #         geom_point(
+    #           alpha = 0.75, 
+    #           color = "darkslategrey"
+    #         ) + 
+    #         theme_minimal() + 
+    #         scale_x_date(
+    #           date_breaks = "2 months",
+    #           date_labels = "%b"
+    #         ) +
+    #         facet_wrap(~waterYear, scales = "free_x")
 
     # save output df 
     write.csv(ice_binary, "derived_data/00_ice_daily_fullyr.csv")
@@ -247,33 +242,33 @@ source(here::here("source", "00_functions.R"))
       # Plot to sanity check 
           # conductivity: color = "olivedrab4". temperature:  color = "salmon3"
 
-          temp_cond_df %>%
-                  ggplot(
-                      aes(x = wy_doy, 
-                          y = cond_uScm
-                      )
-                  ) + 
-                  geom_point(alpha = 0.75, color =  "olivedrab4") + 
-                  theme_minimal()  + 
-                  facet_wrap(~waterYear, scales = "free") # + 
-                  # scale_x_date(
-                  #     date_breaks = "2 months",
-                  #     date_labels = "%b"
-                  # ) 
+          # temp_cond_df %>%
+          #         ggplot(
+          #             aes(x = wy_doy, 
+          #                 y = cond_uScm
+          #             )
+          #         ) + 
+          #         geom_point(alpha = 0.75, color =  "olivedrab4") + 
+          #         theme_minimal()  + 
+          #         facet_wrap(~waterYear, scales = "free") # + 
+          #         # scale_x_date(
+          #         #     date_breaks = "2 months",
+          #         #     date_labels = "%b"
+          #         # ) 
 
-          temp_cond_df %>%
-                  ggplot(
-                      aes(x = Date, 
-                          y = water_temp_C
-                      )
-                  ) + 
-                  geom_point(alpha = 0.75, color =   "salmon3") + 
-                  theme_minimal()   + 
-                  scale_x_date(
-                      date_breaks = "2 months",
-                      date_labels = "%b"
-                  ) + 
-                  facet_wrap(~waterYear, scales = "free") 
+          # temp_cond_df %>%
+          #         ggplot(
+          #             aes(x = Date, 
+          #                 y = water_temp_C
+          #             )
+          #         ) + 
+          #         geom_point(alpha = 0.75, color =   "salmon3") + 
+          #         theme_minimal()   + 
+          #         scale_x_date(
+          #             date_breaks = "2 months",
+          #             date_labels = "%b"
+          #         ) + 
+          #         facet_wrap(~waterYear, scales = "free") 
 
 
 # ______________________
@@ -297,21 +292,21 @@ source(here::here("source", "00_functions.R"))
       str(hydro_daily)
 
       # Plot all together to check 
-      hydro_daily %>%
-          filter(calYear >= 1984) %>%
-          mutate(
-              cond_scaled = scales::rescale(cond_uScm, to = range(c(0, 1), na.rm = TRUE)),
-              temp_scaled = scales::rescale(water_temp_C, to = range(c(0, 1), na.rm = TRUE)), 
-              cumulative_q_scaled = scales::rescale(cumulative_dis, to = range(c(0, 1), na.rm = TRUE)), 
-              q_scaled = scales::rescale(Flow, to = range(c(0, 1), na.rm = TRUE))
-          ) %>%
-          ggplot(aes(x= Date)) + 
-              geom_point(aes(y = cond_scaled), color = "olivedrab4", alpha = 0.75) + 
-              geom_point(aes(y = temp_scaled), color = "salmon3", alpha = 0.75) + 
-              geom_point(aes(y = q_scaled), color = "steelblue1", alpha = 0.75) + 
-              geom_point(aes(y = cumulative_q_scaled), color = "steelblue4", alpha = 0.75) + 
-              theme_minimal() + 
-              facet_wrap(~calYear, scales = "free")
+      # hydro_daily %>%
+      #     filter(calYear >= 1984) %>%
+      #     mutate(
+      #         cond_scaled = scales::rescale(cond_uScm, to = range(c(0, 1), na.rm = TRUE)),
+      #         temp_scaled = scales::rescale(water_temp_C, to = range(c(0, 1), na.rm = TRUE)), 
+      #         cumulative_q_scaled = scales::rescale(cumulative_dis, to = range(c(0, 1), na.rm = TRUE)), 
+      #         q_scaled = scales::rescale(Flow, to = range(c(0, 1), na.rm = TRUE))
+      #     ) %>%
+      #     ggplot(aes(x= Date)) + 
+      #         geom_point(aes(y = cond_scaled), color = "olivedrab4", alpha = 0.75) + 
+      #         geom_point(aes(y = temp_scaled), color = "salmon3", alpha = 0.75) + 
+      #         geom_point(aes(y = q_scaled), color = "steelblue1", alpha = 0.75) + 
+      #         geom_point(aes(y = cumulative_q_scaled), color = "steelblue4", alpha = 0.75) + 
+      #         theme_minimal() + 
+      #         facet_wrap(~calYear, scales = "free")
 
       #save outputs 
       write.csv(hydro_daily, "derived_data/00_hydro_daily_fullyr.csv")
@@ -420,29 +415,29 @@ met_daily <- full_join(snotel, weather_daily) %>%
   )
 
 # Plot all together to check 
-  met_daily %>%
-      filter(calYear >= 1984) %>%
-      mutate(
-          swe = scales::rescale(swe, to = range(c(0, 1), na.rm = TRUE)),
-          precip = scales::rescale(precip, to = range(c(0, 1), na.rm = TRUE)), 
-          precip_cumulative = scales::rescale(precip_cumulative, to = range(c(0, 1), na.rm = TRUE)), 
-          airT_mean = scales::rescale(airT_mean, to = range(c(0, .8), na.rm = TRUE)), 
-          airT_max = scales::rescale(airT_max, to = range(c(0, 1), na.rm = TRUE)),
-          airT_min = scales::rescale(airT_min, to = range(c(0, .6), na.rm = TRUE)), 
-          wind_10m_mean = scales::rescale(wind_10m_mean, to = range(c(0, 1), na.rm = TRUE)), 
-          wind_10m_max = scales::rescale(wind_10m_max, to = range(c(0, 1), na.rm = TRUE))
-      ) %>%
-      ggplot(aes(x= Date)) + 
-          geom_point(aes(y = swe), color = "maroon", alpha = 0.75) + 
-          geom_point(aes(y = precip), color = "mediumpurple1", alpha = 0.75) + 
-          geom_point(aes(y = precip_cumulative), color = "mediumpurple4", alpha = 0.75) + 
-          geom_point(aes(y = airT_mean), color = "orangered2", alpha = 0.75) + 
-          geom_point(aes(y = airT_max), color = "orangered4", alpha = 0.75) + 
-          geom_point(aes(y = airT_min), color = "orangered", alpha = 0.75) + 
-          geom_point(aes(y = wind_10m_mean), color = "goldenrod1", alpha = 0.75) + 
-          geom_point(aes(y = wind_10m_max), color = "goldenrod4", alpha = 0.75) + 
-          theme_minimal() + 
-          facet_wrap(~calYear, scales = "free")
+  # met_daily %>%
+  #     filter(calYear >= 1984) %>%
+  #     mutate(
+  #         swe = scales::rescale(swe, to = range(c(0, 1), na.rm = TRUE)),
+  #         precip = scales::rescale(precip, to = range(c(0, 1), na.rm = TRUE)), 
+  #         precip_cumulative = scales::rescale(precip_cumulative, to = range(c(0, 1), na.rm = TRUE)), 
+  #         airT_mean = scales::rescale(airT_mean, to = range(c(0, .8), na.rm = TRUE)), 
+  #         airT_max = scales::rescale(airT_max, to = range(c(0, 1), na.rm = TRUE)),
+  #         airT_min = scales::rescale(airT_min, to = range(c(0, .6), na.rm = TRUE)), 
+  #         wind_10m_mean = scales::rescale(wind_10m_mean, to = range(c(0, 1), na.rm = TRUE)), 
+  #         wind_10m_max = scales::rescale(wind_10m_max, to = range(c(0, 1), na.rm = TRUE))
+  #     ) %>%
+  #     ggplot(aes(x= Date)) + 
+  #         geom_point(aes(y = swe), color = "maroon", alpha = 0.75) + 
+  #         geom_point(aes(y = precip), color = "mediumpurple1", alpha = 0.75) + 
+  #         geom_point(aes(y = precip_cumulative), color = "mediumpurple4", alpha = 0.75) + 
+  #         geom_point(aes(y = airT_mean), color = "orangered2", alpha = 0.75) + 
+  #         geom_point(aes(y = airT_max), color = "orangered4", alpha = 0.75) + 
+  #         geom_point(aes(y = airT_min), color = "orangered", alpha = 0.75) + 
+  #         geom_point(aes(y = wind_10m_mean), color = "goldenrod1", alpha = 0.75) + 
+  #         geom_point(aes(y = wind_10m_max), color = "goldenrod4", alpha = 0.75) + 
+  #         theme_minimal() + 
+  #         facet_wrap(~calYear, scales = "free")
 
   #save outputs 
       write.csv(met_daily , "derived_data/00_met_daily_fullyr.csv")
@@ -453,7 +448,8 @@ met_daily <- full_join(snotel, weather_daily) %>%
 
 
 
-# ***********************************************************************************************************
+# --------------------------------------------------- OLD  ---------------------------------------------------
+
 # OLD: Instead of trimming here and createing a bunch of intermediate files just save the full data file then trim to waht you want at the top of each script 
 
 # # __________________________________________________
