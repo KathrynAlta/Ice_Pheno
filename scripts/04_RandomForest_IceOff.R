@@ -9,6 +9,8 @@
     # Load any necessary packages amd functions 
         source("source/00_libraries.R")
         source("source/00_functions.R")
+        source("source/feature_engineering.R")
+
        
     # Load in data   
         met_only <- read.csv("derived_data/00_met_daily_fullyr.csv") %>% select(-X)
@@ -30,12 +32,10 @@
         sink_data <- filter_by_year_and_doy(sink_data_full_timeseries, c(170,288))  %>% # March 18 - July 15
             filter(waterYear >= 2014)
 
-
-
     # # Looking at data 
     #     # individual predictors to sanity check 
     #       full_timeseries   %>%
-    #         ggplot(aes(x = wy_doy, y = temperature_C_impute)) + 
+    #         ggplot(aes(x = wy_doy, y = water_temp_C)) + 
     #         geom_point(alpha = 0.5) + 
     #         theme_minimal() + 
     #         facet_wrap(~waterYear,scales = "free_x")
@@ -43,8 +43,8 @@
     #     # plot all together 
     #         loch_raw %>%
     #             mutate(
-    #             cond_scaled = scales::rescale(cond_uScm_impute, to = range(ice_or_no, na.rm = TRUE)),
-    #             temp_scaled = scales::rescale(temperature_C_impute, to = range(ice_or_no, na.rm = TRUE)), 
+    #             cond_scaled = scales::rescale(cond_uScm, to = range(ice_or_no, na.rm = TRUE)),
+    #             temp_scaled = scales::rescale(water_temp_C, to = range(ice_or_no, na.rm = TRUE)), 
     #             cumulative_q_scaled = scales::rescale(cumulative_dis, to = range(ice_or_no, na.rm = TRUE)), 
     #             q_scaled = scales::rescale(Flow, to = range(ice_or_no, na.rm = TRUE))
     #             ) %>%
@@ -61,84 +61,29 @@
 # Feature Engineering 
 # __________________________________________________
 
-    # Organize columns a bit first 
-    loch_out <- subset(loch_raw, select = c("waterYear", "wy_doy", "Date", "ice_or_no", "temperature_C_impute", "cumulative_dis", "cond_uScm_impute", "Flow"))
-    names(loch_out)[names(loch_out) == "ice_or_no"] <- "ice"
-    loch_out$ice <- as.factor(loch_out$ice)
+# Feature Engineering for eachdata set 
+hydro_data <- feature_engineer_hydro_ice_off(hydro_data)
 
-    # Remove any rows with NA in the temp_change_3day column 
-    loch_out <- loch_out %>%
-    tidyr::drop_na()
+met_data <- feature_engineer_met_ice_off(met_data)
 
-    # Add a column that counts the number of days that the water temp has been above thresholds 
-    loch_out <- loch_out %>%
-    group_by(waterYear) %>% # group by water year because we want this count within each water year 
-    arrange(Date, .by_group = TRUE) %>% # make sure everything is in order by day 
-    mutate(
-        cum_days_temp_above2 = cumsum(temperature_C_impute > 2),
-        cum_days_temp_above4 = cumsum(temperature_C_impute > 4), 
-        cum_days_temp_above6 = cumsum(temperature_C_impute > 6),
-    ) %>% #calculate the cumulative sum of rows (days) when water temp was above 4C 
-    ungroup()
-
-    # Add rates of change at different time intervals for temp, conductivity, and cumulative discharge 
-    loch_out <- loch_out %>%
-    group_by(waterYear) %>%
-    arrange(Date, .by_group = TRUE) %>% #arrange by date within the groups 
-    mutate(
-        # Note this is set up so that the difference in temp is since the first day of the water year for the early days 
-        # Rate of change in temperature 
-        temp_change_3day = (temperature_C_impute - lag(temperature_C_impute, n = 3, default = first(temperature_C_impute))) / as.numeric(Date - lag(Date, n = 3, default = first(Date))), 
-        temp_change_5day = (temperature_C_impute - lag(temperature_C_impute, n = 5, default = first(temperature_C_impute))) / as.numeric(Date - lag(Date, n = 5, default = first(Date))), 
-        temp_change_10day = (temperature_C_impute - lag(temperature_C_impute, n = 10, default = first(temperature_C_impute))) / as.numeric(Date - lag(Date, n = 10, default = first(Date))), 
-        temp_change_15day = (temperature_C_impute - lag(temperature_C_impute, n = 15, default = first(temperature_C_impute))) / as.numeric(Date - lag(Date, n = 15, default = first(Date))), 
-        temp_change_20day = (temperature_C_impute - lag(temperature_C_impute, n = 20, default = first(temperature_C_impute))) / as.numeric(Date - lag(Date, n = 20, default = first(Date))), 
-        # Rate of change in cumulative flow 
-        cumq_change_3day = (cumulative_dis - lag(cumulative_dis, n = 3, default = first(cumulative_dis))) / as.numeric(Date - lag(Date, n = 3, default = first(Date))), 
-        cumq_change_5day = (cumulative_dis - lag(cumulative_dis, n = 5,  default = first(cumulative_dis))) / as.numeric(Date - lag(Date, n = 5, default = first(Date))), 
-        cumq_change_10day = (cumulative_dis - lag(cumulative_dis, n = 10, default = first(cumulative_dis))) / as.numeric(Date - lag(Date, n = 10, default = first(Date))), 
-        cumq_change_15day = (cumulative_dis - lag(cumulative_dis, n = 15,  default = first(cumulative_dis))) / as.numeric(Date - lag(Date, n = 15, default = first(Date))), 
-        cumq_change_20day = (cumulative_dis - lag(cumulative_dis, n = 20,  default = first(cumulative_dis))) / as.numeric(Date - lag(Date, n = 20, default = first(Date))), 
-        # Rate of change in conductivity
-        cond_change_3day = (cond_uScm_impute - lag(cond_uScm_impute, n = 3, default = first(cond_uScm_impute))) / as.numeric(Date - lag(Date, n = 3, default = first(Date))), 
-        cond_change_5day = (cond_uScm_impute - lag(cond_uScm_impute, n = 5, default = first(cond_uScm_impute))) / as.numeric(Date - lag(Date, n = 5, default = first(Date))), 
-        cond_change_10day = (cond_uScm_impute - lag(cond_uScm_impute, n = 10, default = first(cond_uScm_impute))) / as.numeric(Date - lag(Date, n = 10, default = first(Date))), 
-        cond_change_15day = (cond_uScm_impute - lag(cond_uScm_impute, n = 15, default = first(cond_uScm_impute))) / as.numeric(Date - lag(Date, n = 15, default = first(Date))), 
-        cond_change_20day = (cond_uScm_impute - lag(cond_uScm_impute, n = 20, default = first(cond_uScm_impute))) / as.numeric(Date - lag(Date, n = 20, default = first(Date))), 
-
-    ) %>%
-    ungroup() # %>%
-    # slice_sample(prop = 1) # remove the arrange by date 
-
-    str(loch_out)
-
-    # Look at the NAs 
-    na_summary <- loch_out %>%
-      group_by(waterYear) %>%
-      summarize(
-        across(
-          everything(),
-          ~ sum(is.na(.))
-        )
-      )
-  # Remove any rows with NA in the temp_change_3day column 
-    loch_out <- loch_out %>%
-    tidyr::drop_na()
+sink_data <- feature_engineer_hydro_ice_off(sink_data)
+sink_data <- feature_engineer_met_ice_off(sink_data)
 
 
-    # check for class imbalance 
+
+# check for class imbalance 
     # --> need to deal with slight class imbalance  in the modeling, we have fewer data points with no ice than with ice  
-    balance_count <- loch_out %>%
-      count(waterYear, ice) %>%
+    balance_count <- ice_only %>%
+      filter(waterYear >= 2014 & waterYear <= 2025) %>%
+      count(waterYear, ice_presence) %>%
       tidyr::pivot_wider(
-          names_from = ice,
+          names_from = ice_presence,
           values_from = n,
           names_prefix = "ice_"
-    )
+        )
     balance_count$proportion_0 <- balance_count$ice_0 /(balance_count$ice_0 + balance_count$ice_1)
 
-    loch_out %>%
-    count(ice)
+# KAG: you made it to here on the plane to Seattle on 2026-07-17
 
 # __________________________________________________
 # Leave one Year out Accuracy for Random Forest 
@@ -301,12 +246,12 @@
 
         # hind_data %>%
         #     mutate(
-        #         cond_scaled = scales::rescale(cond_uScm_impute, to = range(temperature_C_impute, na.rm = TRUE)),
-        #         cumulative_q_scaled = scales::rescale(cumulative_dis, to = range(temperature_C_impute, na.rm = TRUE)), 
-        #         q_scaled = scales::rescale(Flow, to = range(temperature_C_impute, na.rm = TRUE))
+        #         cond_scaled = scales::rescale(cond_uScm, to = range(water_temp_C, na.rm = TRUE)),
+        #         cumulative_q_scaled = scales::rescale(cumulative_dis, to = range(water_temp_C, na.rm = TRUE)), 
+        #         q_scaled = scales::rescale(Flow, to = range(water_temp_C, na.rm = TRUE))
         #     ) %>%
         #     ggplot(aes(x= Date)) +
-        #     geom_point(aes(y = temperature_C_impute), color = "salmon3", alpha = 0.75) + 
+        #     geom_point(aes(y = water_temp_C), color = "salmon3", alpha = 0.75) + 
         #     geom_point(aes(y = cond_scaled), color = "olivedrab4", alpha = 0.75) + 
         #     geom_point(aes(y = cumulative_q_scaled), color = "mediumpurple4", alpha = 0.75) +
         #     geom_point(aes(y = q_scaled), color = "mediumpurple1", alpha = 0.75) +  
@@ -316,16 +261,16 @@
 # Feature Engineering on Hindcast data  ---------------------
 
     # Organize columns a bit first 
-    hind_data <- subset(hind_data, select = c("waterYear", "wy_doy", "Date", "temperature_C_impute", "cumulative_dis", "cond_uScm_impute", "Flow"))
+    hind_data <- subset(hind_data, select = c("waterYear", "wy_doy", "Date", "water_temp_C", "cumulative_dis", "cond_uScm", "Flow"))
 
     # Add a column that counts the number of days that the water temp has been above thresholds 
     hind_data <- hind_data %>% # HERE 
         group_by(waterYear) %>% # group by water year because we want this count within each water year 
         arrange(Date, .by_group = TRUE) %>% # make sure everything is in order by day 
         mutate(
-            cum_days_temp_above2 = cumsum(temperature_C_impute > 2),
-            cum_days_temp_above4 = cumsum(temperature_C_impute > 4), 
-            cum_days_temp_above6 = cumsum(temperature_C_impute > 6),
+            cum_days_water_temp_above2 = cumsum(water_temp_C > 2),
+            cum_days_water_temp_above4 = cumsum(water_temp_C > 4), 
+            cum_days_water_temp_above6 = cumsum(water_temp_C > 6),
         ) %>% #calculate the cumulative sum of rows (days) when water temp was above 4C 
         ungroup()
 
@@ -336,11 +281,11 @@
         mutate(
             # Note this is set up so that the difference in temp is since the first day of the water year for the early days 
             # Rate of change in temperature 
-            temp_change_3day = (temperature_C_impute - lag(temperature_C_impute, n = 3, default = first(temperature_C_impute))) / as.numeric(Date - lag(Date, n = 3, default = first(Date))), 
-            temp_change_5day = (temperature_C_impute - lag(temperature_C_impute, n = 5, default = first(temperature_C_impute))) / as.numeric(Date - lag(Date, n = 5, default = first(Date))), 
-            temp_change_10day = (temperature_C_impute - lag(temperature_C_impute, n = 10, default = first(temperature_C_impute))) / as.numeric(Date - lag(Date, n = 10, default = first(Date))), 
-            temp_change_15day = (temperature_C_impute - lag(temperature_C_impute, n = 15, default = first(temperature_C_impute))) / as.numeric(Date - lag(Date, n = 15, default = first(Date))), 
-            temp_change_20day = (temperature_C_impute - lag(temperature_C_impute, n = 20, default = first(temperature_C_impute))) / as.numeric(Date - lag(Date, n = 20, default = first(Date))), 
+            water_water_temp_change_3day = (water_temp_C - lag(water_temp_C, n = 3, default = first(water_temp_C))) / as.numeric(Date - lag(Date, n = 3, default = first(Date))), 
+            water_water_temp_change_5day = (water_temp_C - lag(water_temp_C, n = 5, default = first(water_temp_C))) / as.numeric(Date - lag(Date, n = 5, default = first(Date))), 
+            water_water_temp_change_10day = (water_temp_C - lag(water_temp_C, n = 10, default = first(water_temp_C))) / as.numeric(Date - lag(Date, n = 10, default = first(Date))), 
+            water_water_temp_change_15day = (water_temp_C - lag(water_temp_C, n = 15, default = first(water_temp_C))) / as.numeric(Date - lag(Date, n = 15, default = first(Date))), 
+            water_water_temp_change_20day = (water_temp_C - lag(water_temp_C, n = 20, default = first(water_temp_C))) / as.numeric(Date - lag(Date, n = 20, default = first(Date))), 
             # Rate of change in cumulative flow 
             cumq_change_3day = (cumulative_dis - lag(cumulative_dis, n = 3, default = first(cumulative_dis))) / as.numeric(Date - lag(Date, n = 3, default = first(Date))), 
             cumq_change_5day = (cumulative_dis - lag(cumulative_dis, n = 5,  default = first(cumulative_dis))) / as.numeric(Date - lag(Date, n = 5, default = first(Date))), 
@@ -348,18 +293,18 @@
             cumq_change_15day = (cumulative_dis - lag(cumulative_dis, n = 15,  default = first(cumulative_dis))) / as.numeric(Date - lag(Date, n = 15, default = first(Date))), 
             cumq_change_20day = (cumulative_dis - lag(cumulative_dis, n = 20,  default = first(cumulative_dis))) / as.numeric(Date - lag(Date, n = 20, default = first(Date))), 
             # Rate of change in conductivity
-            cond_change_3day = (cond_uScm_impute - lag(cond_uScm_impute, n = 3, default = first(cond_uScm_impute))) / as.numeric(Date - lag(Date, n = 3, default = first(Date))), 
-            cond_change_5day = (cond_uScm_impute - lag(cond_uScm_impute, n = 5, default = first(cond_uScm_impute))) / as.numeric(Date - lag(Date, n = 5, default = first(Date))), 
-            cond_change_10day = (cond_uScm_impute - lag(cond_uScm_impute, n = 10, default = first(cond_uScm_impute))) / as.numeric(Date - lag(Date, n = 10, default = first(Date))), 
-            cond_change_15day = (cond_uScm_impute - lag(cond_uScm_impute, n = 15, default = first(cond_uScm_impute))) / as.numeric(Date - lag(Date, n = 15, default = first(Date))), 
-            cond_change_20day = (cond_uScm_impute - lag(cond_uScm_impute, n = 20, default = first(cond_uScm_impute))) / as.numeric(Date - lag(Date, n = 20, default = first(Date))), 
+            cond_change_3day = (cond_uScm - lag(cond_uScm, n = 3, default = first(cond_uScm))) / as.numeric(Date - lag(Date, n = 3, default = first(Date))), 
+            cond_change_5day = (cond_uScm - lag(cond_uScm, n = 5, default = first(cond_uScm))) / as.numeric(Date - lag(Date, n = 5, default = first(Date))), 
+            cond_change_10day = (cond_uScm - lag(cond_uScm, n = 10, default = first(cond_uScm))) / as.numeric(Date - lag(Date, n = 10, default = first(Date))), 
+            cond_change_15day = (cond_uScm - lag(cond_uScm, n = 15, default = first(cond_uScm))) / as.numeric(Date - lag(Date, n = 15, default = first(Date))), 
+            cond_change_20day = (cond_uScm - lag(cond_uScm, n = 20, default = first(cond_uScm))) / as.numeric(Date - lag(Date, n = 20, default = first(Date))), 
 
         ) %>%
         ungroup()
 
     str(hind_data)
 
-    # Remove any rows with NA in the temp_change_3day column 
+    # Remove any rows with NA in the water_water_temp_change_3day column 
     hind_data <- hind_data %>%
         tidyr::drop_na()
 
@@ -419,8 +364,8 @@
 
         hind_data %>%
             mutate(
-                cond_scaled = scales::rescale(cond_uScm_impute, to = range(ice_rf, na.rm = TRUE)),
-                temp_scaled = scales::rescale(temperature_C_impute, to = range(ice_rf, na.rm = TRUE)), 
+                cond_scaled = scales::rescale(cond_uScm, to = range(ice_rf, na.rm = TRUE)),
+                temp_scaled = scales::rescale(water_temp_C, to = range(ice_rf, na.rm = TRUE)), 
                 cumulative_q_scaled = scales::rescale(cumulative_dis, to = range(ice_rf, na.rm = TRUE)), 
                 q_scaled = scales::rescale(Flow, to = range(ice_rf, na.rm = TRUE))
             ) %>%
