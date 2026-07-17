@@ -2,6 +2,12 @@
 # Random Forest Ice OFF  
 #######################################
 
+# KAG NEXT STEPS: 
+# [ ] put the leave one out accuracy into a function 
+# [ ] run the looa function for each model (met, hydro, sink)
+# [ ] standardize the ouputs (accuracy and predictons and hindcasts)
+# [ ] write another script to copare the outputs across modesl 
+
 # __________________________________________________
 # 0. Set Up R Environment and data munging 
 # __________________________________________________
@@ -88,13 +94,11 @@ sink_data <- feature_engineer_met_ice_off(sink_data)
 # __________________________________________________
 # Leave one Year out Accuracy for Random Forest 
 # __________________________________________________
-
-#     # initialize i to step through for loop 
-#    i <- 3 
-
     
-    # create an object that holds all of the waterYears in the full dataset 
-        years <- unique(loch_out$waterYear) 
+# Write a function to run the leave one year out accuracy 
+leave_one_out_accuracy_rf <- function(model_input){
+  # create an object that holds all of the waterYears in the full dataset 
+        years <- unique(model_input$waterYear) 
 
     # Create an obect to hold the out of sample accuracy for each year 
         accuracy_rf <- rep(NA, length(years))
@@ -107,15 +111,15 @@ sink_data <- feature_engineer_met_ice_off(sink_data)
 
         # seperate into train and test data 
         test_year <- years[i]
-        training_data <- loch_out[loch_out$waterYear != test_year, ]
-        test_data <- loch_out[loch_out$waterYear == test_year, ]
+        training_data <- model_input[model_input$waterYear != test_year, ]
+        test_data <- model_input[model_input$waterYear == test_year, ]
       
         # train a random forest model on training data
         n_abs <- sum(training_data$ice == 0) # get the number of days when ice was absence to use to account for class imbalance 
-        trained_rf_model <- randomForest(ice ~ ., data=training_data[, -c(1:3)], ntree = 500, sampsize=c(n_abs, n_abs))
+        trained_rf_model <- randomForest(ice ~ ., data=training_data[, -c(1:4)], ntree = 1000, sampsize=c(n_abs, n_abs))
       
         # use the trained random forest model to predict the presence or absence of ice in the test data 
-        predicted_ice_prob_rf <- predict(trained_rf_model, newdata=test_data[, -c(1:4)], type="prob")[,2] # the 2 is because we only want the probability of ice presence (2nd column) not the probability of absence 
+        predicted_ice_prob_rf <- predict(trained_rf_model, newdata=test_data[, -c(1:5)], type="prob")[,2] # the 2 is because we only want the probability of ice presence (2nd column) not the probability of absence 
       
         # Convert the probability into a prediction 
         threshold <- 0.5 # Set the threshold probability of when you call ice presence present 
@@ -141,8 +145,75 @@ sink_data <- feature_engineer_met_ice_off(sink_data)
             pred_ice_off[i] <- ice_off_pred
       
     }
+  
+  # Put together outputs 
+  output <- cbind(
+        years, 
+        accuracy_rf, 
+        ice_off_diff_rf, 
+        obs_ice_off, 
+        pred_ice_off
+    ) %>%
+    as.data.frame() %>%
+    rename(
+        year = years
+    )
+  
+  return(output)
+  
+}
 
-    # Observed vs. predicted plots 
+# Apply the function to each of your model datasets (met, hydro, sink)
+
+hydro_accuracy <- leave_one_out_accuracy_rf(hydro_data)
+met_accuracy <- leave_one_out_accuracy_rf(met_data)
+sink_accuracy <- leave_one_out_accuracy_rf(sink_data)
+
+# initial pass of looking 
+hydro_accuracy$model <- "hydro"
+met_accuracy$model <- "met"
+sink_accuracy$model <- "sink"
+
+model_accuracy <- rbind(
+    hydro_accuracy, 
+    met_accuracy, 
+    sink_accuracy
+) %>%
+  mutate(
+    year = as.numeric(year)
+  )
+
+model_accuracy %>%
+  ggplot(
+    aes(
+        x = year, 
+        y = accuracy_rf, 
+        color = model
+    )
+  ) + 
+  geom_jitter(alpha = 0.75) + 
+  theme_minimal(base_size = 16)
+
+model_accuracy %>%
+  ggplot(
+    aes(
+        x = model, 
+        y = ice_off_diff_rf, 
+        color = model
+    )
+  ) + 
+  geom_boxplot() + 
+  geom_point(alpha = 0.5) + 
+  theme_minimal(base_size = 16)
+
+# doesn't look like there is any noticable difference between the three modesl 
+    
+
+#__________________________________
+# Plots and looking at output 
+#__________________________________ 
+
+# Observed vs. predicted plots 
         obs_pred <- cbind(years, obs_ice_off, pred_ice_off) %>%
           as.data.frame()
         names(obs_pred)[names(obs_pred) == "years"] <- "waterYear"
@@ -231,8 +302,8 @@ sink_data <- feature_engineer_met_ice_off(sink_data)
 
     # Trim full time series to only 
     hind_data <- full_timeseries %>%
-      filter(Date < min(loch_out$Date)) %>% #include the timepoints prior to the start of the training data
-      filter(wy_doy >= min(loch_out$wy_doy) & wy_doy <= max(loch_out$wy_doy)) %>% # trim full time series to only include timepoints in the spring 
+      filter(Date < min(model_input$Date)) %>% #include the timepoints prior to the start of the training data
+      filter(wy_doy >= min(model_input$wy_doy) & wy_doy <= max(model_input$wy_doy)) %>% # trim full time series to only include timepoints in the spring 
       select(-c(ice_presence, ice_or_no)) %>%
       tidyr::drop_na() # remove any rows with na values in any column 
 
@@ -311,10 +382,10 @@ sink_data <- feature_engineer_met_ice_off(sink_data)
 # Random Forest Hindcast model ----------------------------------------------
 
         # to account for a slight class imbalance we want to make that when training the model, it is grabbing the same number as days with ice and without ice 
-        n_abs <- sum(loch_out$ice == 0) # get the number of days when ice was absence 
+        n_abs <- sum(model_input$ice == 0) # get the number of days when ice was absence 
 
         # Train the random forest model using all the data we have ice presence data for 
-        trained_hind_rf_model <- randomForest(ice ~ ., data=loch_out[, -c(1:3)], ntree = 500, sampsize=c(n_abs, n_abs))
+        trained_hind_rf_model <- randomForest(ice ~ ., data=model_input[, -c(1:3)], ntree = 500, sampsize=c(n_abs, n_abs))
                 # input the training data but remove the first 3 columns (date, water year, and day of water year)
                 # this says rpredict ice based on every other column in this data, run an ensamble of 500 trees and give me the outcome
 

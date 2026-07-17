@@ -16,6 +16,7 @@ feature_engineer_hydro_ice_off <- function(hydro_input){
         arrange(Date, .by_group = TRUE) %>% # make sure everything is in order by day 
         mutate(
             Date = as.POSIXct(Date), 
+            ice = as.factor(ice),  # change to factor to be able to predict 
             cum_days_water_temp_above2 = cumsum(water_temp_C > 2),
             cum_days_water_temp_above4 = cumsum(water_temp_C > 4), 
             cum_days_water_temp_above6 = cumsum(water_temp_C > 6),
@@ -64,7 +65,8 @@ feature_engineer_met_ice_off <- function(met_input){
     # cumulative number of days where the min , max, and mean air temperature mean have been above certain threshodls 
         met_output <- met_input %>%
             mutate(
-              Date = as.POSIXct(Date)
+              Date = as.POSIXct(Date), 
+              ice = as.factor(ice),  # change to factor to be able to predict 
             ) %>%
             group_by(waterYear) %>% # group by water year because we want this count within each water year 
             arrange(Date, .by_group = TRUE) %>% # make sure everything is in order by day 

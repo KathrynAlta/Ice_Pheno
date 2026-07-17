@@ -37,7 +37,6 @@ source(here::here("source", "00_functions.R"))
               ice = ice_presence # rename ice to shorten 
             ) %>%
             mutate(
-              ice = as.factor(ice),  # change to factor to be able to predict 
               Date = as.POSIXct(Date)
             ) 
 
