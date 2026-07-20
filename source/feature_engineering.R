@@ -8,6 +8,8 @@
 # Feature Engineering for hydrologic data for ice off -----
 # ______________________________________________
 
+hydro_input <- hydro_data_full_timeseries
+
 feature_engineer_hydro_ice_off <- function(hydro_input){
 
     # Add a column that counts the number of days that the water temp has been above thresholds 
@@ -50,7 +52,7 @@ feature_engineer_hydro_ice_off <- function(hydro_input){
 
         ) %>%
         ungroup() %>%
-        tidyr::drop_na()  # Remove any rows with NA
+        tidyr::drop_na(-ice)  # *** Need to update this so that it doesn't remove NAs in the ice column 
   
   return(hydro_output)
 }
@@ -97,7 +99,7 @@ feature_engineer_met_ice_off <- function(met_input){
                 cum_days_min_air_temp_above10 = cumsum(airT_min > 10),
             ) %>% #calculate the cumulative sum of rows (days) when water temp was above 4C 
             ungroup() %>%
-            tidyr::drop_na()  # Remove any rows with NA
+            tidyr::drop_na(-ice)  # Remove any rows with NA
   
   return(met_output)
 }
