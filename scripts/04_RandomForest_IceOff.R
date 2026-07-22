@@ -3,10 +3,13 @@
 #######################################
 
 # KAG NEXT STEPS: 
-# [ ] put the leave one out accuracy into a function 
-# [ ] run the looa function for each model (met, hydro, sink)
+# [X] put the leave one out accuracy into a function 
+# [X] run the looa function for each model (met, hydro, sink)
 # [ ] standardize the ouputs (accuracy and predictons and hindcasts)
 # [ ] write another script to copare the outputs across modesl 
+
+# Stop and Fix: hydro and sink models not running for 2020, 2021, 2022, and 2023 --> but it looks like the data is there? Check hydro, hmm also hydro should be working because I got it to work for ML class  
+    # somehow looosing flow and cumulative flow for 2021 
 
 # __________________________________________________
 # 0. Set Up R Environment and data munging 
@@ -29,46 +32,50 @@
         sink_data_full_timeseries <- left_join(hydro_data_full_timeseries, met_data_full_timeseries)
 
     # Trim data frames to only spring and only since 2014
-        met_data <- filter_by_year_and_doy(met_data_full_timeseries, c(170,288))  %>% # March 18 - July 15
+        met_trimmed <- filter_by_year_and_doy(met_data_full_timeseries, c(170,288))  %>% # March 18 - July 15
             filter(waterYear >= 2014)
 
-        hydro_data <- filter_by_year_and_doy(hydro_data_full_timeseries, c(170,288))  %>% # March 18 - July 15
+        hydro_trimmed <- filter_by_year_and_doy(hydro_data_full_timeseries, c(170,288))  %>% # March 18 - July 15
             filter(waterYear >= 2014)
 
-        sink_data <- filter_by_year_and_doy(sink_data_full_timeseries, c(170,288))  %>% # March 18 - July 15
+        sink_trimmed <- filter_by_year_and_doy(sink_data_full_timeseries, c(170,288))  %>% # March 18 - July 15
             filter(waterYear >= 2014)
 
-    # # Looking at data 
- 
+    # Trouble shooting hydro data missing? KAG 20260722 
 
-        # # plot met data 
-        #     loch_raw %>%
-        #         mutate(
-        #         cond_scaled = scales::rescale(cond_uScm, to = range(ice_or_no, na.rm = TRUE)),
-        #         temp_scaled = scales::rescale(water_temp_C, to = range(ice_or_no, na.rm = TRUE)), 
-        #         cumulative_q_scaled = scales::rescale(cumulative_dis, to = range(ice_or_no, na.rm = TRUE)), 
-        #         q_scaled = scales::rescale(Flow, to = range(ice_or_no, na.rm = TRUE))
-        #         ) %>%
-        #         ggplot(aes(x= Date)) +
-        #         geom_point(aes(y = ice_or_no), color = "skyblue3", alpha = 0.75) + 
-        #         geom_point(aes(y = cond_scaled), color = "olivedrab4", alpha = 0.75) + 
-        #         geom_point(aes(y = temp_scaled), color = "salmon3", alpha = 0.75) + 
-        #         geom_point(aes(y = q_scaled), color = "mediumpurple1", alpha = 0.75) + 
-        #         geom_point(aes(y = cumulative_q_scaled), color = "mediumpurple4", alpha = 0.75) + 
-        #         theme_minimal() + 
-        #     facet_wrap(~waterYear, scales = "free")
+        hydro_data  %>%
+            mutate(
+            Date = as.POSIXct(Date), 
+            cond_scaled = scales::rescale(cond_uScm, to = range(c(0,1), na.rm = TRUE)),
+            temp_scaled = scales::rescale(water_temp_C, to = range(c(0,1), na.rm = TRUE)), 
+            cumulative_q_scaled = scales::rescale(cumulative_dis, to = range(c(0,1), na.rm = TRUE)), 
+            q_scaled = scales::rescale(Flow, to = range(c(0,1), na.rm = TRUE))
+            ) %>%
+            ggplot(aes(x= Date)) + 
+            geom_point(aes(y = cond_scaled), color = "olivedrab4", alpha = 0.75) + 
+            geom_point(aes(y = temp_scaled), color = "salmon3", alpha = 0.75) + 
+            geom_point(aes(y = q_scaled), color = "mediumpurple1", alpha = 0.75) + 
+            geom_point(aes(y = cumulative_q_scaled), color = "mediumpurple4", alpha = 0.75) + 
+            theme_minimal() + 
+        facet_wrap(~waterYear, scales = "free")
 
 # __________________________________________________
 # Feature Engineering 
 # __________________________________________________
 
 # Feature Engineering for eachdata set 
-hydro_data <- feature_engineer_hydro_ice_off(hydro_data)
+hydro_data <- feature_engineer_hydro_ice_off(hydro_trimmed) %>%
+  tidyr::drop_na()  # Remove any rows with NA
 
-met_data <- feature_engineer_met_ice_off(met_data)
+            # hydro trimmed has all of the water years, but coming out of the feature engineering function it does not 
 
-sink_data <- feature_engineer_hydro_ice_off(sink_data)
-sink_data <- feature_engineer_met_ice_off(sink_data)
+met_data <- feature_engineer_met_ice_off(met_trimmed) %>%
+  tidyr::drop_na()  # Remove any rows with NA
+
+sink_data <- sink_trimmed %>%
+    feature_engineer_hydro_ice_off() %>%
+    feature_engineer_met_ice_off() %>%
+    tidyr::drop_na()  # Remove any rows with NA
 
 
 
@@ -87,13 +94,19 @@ sink_data <- feature_engineer_met_ice_off(sink_data)
 # __________________________________________________
 # Leave one Year out Accuracy for Random Forest 
 # __________________________________________________
+
+# might be inputing issue with the 7 day window? 
+
+# Dummy data for trouble shooting 
+# model_input <- hydro_data
+# i <- 8 
     
 # Write a function to run the leave one year out accuracy 
 leave_one_out_accuracy_rf <- function(model_input){
   # create an object that holds all of the waterYears in the full dataset 
         years <- unique(model_input$waterYear) 
 
-    # Create an obect to hold the out of sample accuracy for each year 
+    # Create an object to hold the out of sample accuracy for each year 
         accuracy_rf <- rep(NA, length(years))
         ice_off_diff_rf <- rep(NA, length(years))
         obs_ice_off <- rep(NA, length(years))
@@ -189,12 +202,15 @@ mutate(
             model_performance %>%
             ggplot(
                 aes(
-                    x = year, 
+                    x = waterYear, 
                     y = accuracy_rf, 
                     color = model
                 )
             ) + 
-            geom_jitter(alpha = 0.75) + 
+            geom_point(
+                alpha = 0.75, 
+                size = 3
+            ) + 
             scale_color_manual(
                 values= c(
                     "hydro" = "dodgerblue", 
@@ -205,32 +221,33 @@ mutate(
             labs(
                 x = "Water Year Left Out", 
                 y = "Leave One Year Out Accuracy",  
+                title = "Random Forest"
             ) + 
             theme_minimal(base_size = 16)
 
         # Boxplot of accuracy by model in out 
             model_performance %>%
-            ggplot(
-                aes(
-                    x = model, 
-                    y = accuracy_rf, 
-                    color = model
-                )
-            ) + 
-            geom_boxplot() + 
-            geom_point(alpha = 0.5) + 
-            scale_color_manual(
-                values= c(
-                    "hydro" = "dodgerblue", 
-                    "met" = "goldenrod", 
-                    "sink" = "forestgreen"
-                )
-                ) +
-            labs(
-                x = "Model Input Data", 
-                y = "Leave One Year Out Accuracy"
-            ) + 
-            theme_minimal(base_size = 16)
+                ggplot(
+                    aes(
+                        x = model, 
+                        y = accuracy_rf, 
+                        color = model
+                    )
+                ) + 
+                geom_boxplot() + 
+                geom_point(alpha = 0.5) + 
+                scale_color_manual(
+                    values= c(
+                        "hydro" = "dodgerblue", 
+                        "met" = "goldenrod", 
+                        "sink" = "forestgreen"
+                    )
+                    ) +
+                labs(
+                    x = "Model Input Data", 
+                    y = "Leave One Year Out Accuracy"
+                ) + 
+                theme_minimal(base_size = 16)
 
     # Obs - Predicted _______
 
@@ -238,12 +255,12 @@ mutate(
                 model_performance %>%
                 ggplot(
                     aes(
-                        x = year, 
+                        x = waterYear, 
                         y = ice_off_diff_rf, 
                         color = model
                     )
                 ) + 
-                geom_jitter(alpha = 0.75) + 
+                geom_point(alpha = 0.75, size = 3) + 
                 scale_color_manual(
                     values= c(
                         "hydro" = "dodgerblue", 
