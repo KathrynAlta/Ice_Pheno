@@ -8,12 +8,11 @@
 # Feature Engineering for hydrologic data for ice off -----
 # ______________________________________________
 
-hydro_input <- hydro_data_full_timeseries
-
 feature_engineer_hydro_ice_off <- function(hydro_input){
 
     # Add a column that counts the number of days that the water temp has been above thresholds 
-    hydro_input <- hydro_input %>%
+    hydro_intermediate <- hydro_input %>%
+        tidyr::drop_na(-ice) %>%
         group_by(waterYear) %>% # group by water year because we want this count within each water year 
         arrange(Date, .by_group = TRUE) %>% # make sure everything is in order by day 
         mutate(
@@ -26,7 +25,7 @@ feature_engineer_hydro_ice_off <- function(hydro_input){
         ungroup()
 
     # Add rates of change at different time intervals for temp, conductivity, and cumulative discharge 
-    hydro_output <- hydro_input  %>%
+    hydro_output <-  hydro_intermediate  %>%
         group_by(waterYear) %>%
         arrange(Date, .by_group = TRUE) %>% #arrange by date within the groups 
         mutate(
@@ -57,6 +56,21 @@ feature_engineer_hydro_ice_off <- function(hydro_input){
   return(hydro_output)
 }
 
+# Trouble shooting 20260722
+# check_nas <- hydro_output %>%
+#   summarise(
+#     across(
+#       everything(),
+#       ~ sum(is.na(.))
+#     )
+#   ) %>%
+#   pivot_longer(
+#     cols = everything(),
+#     names_to = "variable",
+#     values_to = "n_NA"
+#   ) %>%
+#     as.data.frame()
+
 
 # ______________________________________________
 # Feature Engineering for Meteorlogical data -----
@@ -66,6 +80,7 @@ feature_engineer_met_ice_off <- function(met_input){
     
     # cumulative number of days where the min , max, and mean air temperature mean have been above certain threshodls 
         met_output <- met_input %>%
+            tidyr::drop_na(-ice) %>%
             mutate(
               Date = as.POSIXct(Date), 
               ice = as.factor(ice),  # change to factor to be able to predict 
