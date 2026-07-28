@@ -1,6 +1,10 @@
 #######################################
-# Random Forest Ice OFF  
+# Random Forest Ice ON  
 #######################################
+
+# NOTES ************************
+
+# KAG 20260629: This is copied and pasted whole sale from ice off script. Needs to be updated to work with different input data and different parameters 
 
 # __________________________________________________
 # 0. Set Up R Environment and data munging 
@@ -8,54 +12,48 @@
 
     # Load any necessary packages amd functions 
         source("source/00_libraries.R")
-        source("source/00_functions.R")
+        source("source/random_partitions.R")
        
     # Load in data   
-        met_only <- read.csv("derived_data/00_met_daily_fullyr.csv") %>% select(-X)
-        hydro_only <- read.csv("derived_data/00_hydro_daily_fullyr.csv")  %>% select(-X)
-        ice_only <- read.csv("derived_data/00_ice_daily_fullyr.csv") %>% select(-X)
+        met_data <- read.csv("derived_data/00_met_daily_fullyr.csv")
+        met_data <- read.csv("derived_data/00_met_daily_fullyr.csv")
 
     # Add Ice data to create the three data frames you are going to work with 
-        met_data_full_timeseries <- full_join(ice_only, met_only)
-        hydro_data_full_timeseries <- full_join(ice_only, hydro_only)
-        sink_data_full_timeseries <- full_join(hydro_data_full_timeseries, met_data_full_timeseries)
 
     # Trim data frames to only spring and only since 2014
-        met_data <- filter_by_year_and_doy(met_data_full_timeseries, c(170,288))  %>% # March 18 - July 15
-            filter(waterYear >= 2014)
 
-        hydro_data <- filter_by_year_and_doy(hydro_data_full_timeseries, c(170,288))  %>% # March 18 - July 15
-            filter(waterYear >= 2014)
-
-        sink_data <- filter_by_year_and_doy(sink_data_full_timeseries, c(170,288))  %>% # March 18 - July 15
-            filter(waterYear >= 2014)
+        full_timeseries$Date <- as.POSIXct(full_timeseries$Date)
 
 
+    # Looking at data 
+        # individual predictors to sanity check 
+          full_timeseries   %>%
+            ggplot(
+                aes(
+                    x = wy_doy, 
+                    y = temperature_C_impute
+                )
+            ) + 
+            geom_point(alpha = 0.5) + 
+            theme_minimal() + 
+            facet_wrap(~calYear,scales = "free_x")
 
-    # # Looking at data 
-    #     # individual predictors to sanity check 
-    #       full_timeseries   %>%
-    #         ggplot(aes(x = wy_doy, y = temperature_C_impute)) + 
-    #         geom_point(alpha = 0.5) + 
-    #         theme_minimal() + 
-    #         facet_wrap(~waterYear,scales = "free_x")
-
-    #     # plot all together 
-    #         loch_raw %>%
-    #             mutate(
-    #             cond_scaled = scales::rescale(cond_uScm_impute, to = range(ice_or_no, na.rm = TRUE)),
-    #             temp_scaled = scales::rescale(temperature_C_impute, to = range(ice_or_no, na.rm = TRUE)), 
-    #             cumulative_q_scaled = scales::rescale(cumulative_dis, to = range(ice_or_no, na.rm = TRUE)), 
-    #             q_scaled = scales::rescale(Flow, to = range(ice_or_no, na.rm = TRUE))
-    #             ) %>%
-    #             ggplot(aes(x= Date)) +
-    #             geom_point(aes(y = ice_or_no), color = "skyblue3", alpha = 0.75) + 
-    #             geom_point(aes(y = cond_scaled), color = "olivedrab4", alpha = 0.75) + 
-    #             geom_point(aes(y = temp_scaled), color = "salmon3", alpha = 0.75) + 
-    #             geom_point(aes(y = q_scaled), color = "mediumpurple1", alpha = 0.75) + 
-    #             geom_point(aes(y = cumulative_q_scaled), color = "mediumpurple4", alpha = 0.75) + 
-    #             theme_minimal() + 
-    #         facet_wrap(~waterYear, scales = "free")
+        # plot all together 
+            loch_raw %>%
+                mutate(
+                cond_scaled = scales::rescale(cond_uScm_impute, to = range(ice_or_no, na.rm = TRUE)),
+                temp_scaled = scales::rescale(temperature_C_impute, to = range(ice_or_no, na.rm = TRUE)), 
+                cumulative_q_scaled = scales::rescale(cumulative_dis, to = range(ice_or_no, na.rm = TRUE)), 
+                q_scaled = scales::rescale(Flow, to = range(ice_or_no, na.rm = TRUE))
+                ) %>%
+                ggplot(aes(x= Date)) +
+                geom_point(aes(y = ice_or_no), color = "skyblue3", alpha = 0.75) + 
+                geom_point(aes(y = cond_scaled), color = "olivedrab4", alpha = 0.75) + 
+                geom_point(aes(y = temp_scaled), color = "salmon3", alpha = 0.75) + 
+                geom_point(aes(y = q_scaled), color = "mediumpurple1", alpha = 0.75) + 
+                geom_point(aes(y = cumulative_q_scaled), color = "mediumpurple4", alpha = 0.75) + 
+                theme_minimal() + 
+            facet_wrap(~calYear, scales = "free")
 
 # __________________________________________________
 # Feature Engineering 
@@ -477,5 +475,3 @@
         x = "Water Year", 
         y = "Hindcast date of ice off"
       )
-
-
