@@ -12,30 +12,66 @@ source("source/00_libraries.R")
 
 # Load in data   
 
-# Ice presence, conductivity, water temperature, and flow for full time series 
-full_timeseries <- read.csv("derived_data/00_imputed_data_trimmed_winter.csv")
-full_timeseries$Date <- as.POSIXct(full_timeseries$Date)
+# # Ice presence, conductivity, water temperature, and flow for full time series 
+# full_timeseries <- read.csv("derived_data/00_imputed_data_trimmed_winter.csv")
+# full_timeseries$Date <- as.POSIXct(full_timeseries$Date)
+# 
+# # Create another data frame that contains just the years for which we also have ice observations 
+# loch_raw <- full_timeseries %>%
+#   filter(waterYear >= 2014)
+# 
+# # Met data from Bear Lake SnoTel site 322
+# full_met <- read.csv("derived_data/00_snotel_322.csv")
+# full_met$date <- as.POSIXct(full_met$date)
 
-# Create another data frame that contains just the years for which we also have ice observations 
-loch_raw <- full_timeseries %>%
+
+############### NEW load in data from Katie's script + my fix for duplicates in hydro_data because of wy_doy discrepencies
+# Load in data   
+met_only <- read.csv("derived_data/00_met_daily_fullyr.csv") %>% select(-X)
+hydro_only <- read.csv("derived_data/00_hydro_daily_fullyr.csv")  %>% select(-X) # This has 239 duplicate dates
+ice_only <- read.csv("derived_data/00_ice_daily_fullyr.csv") %>% select(-X)
+
+hydro_only_fixed <- hydro_only %>%
+  group_by(Date) %>%
+  summarise(
+    calYear = first(na.omit(calYear)),
+    waterYear = first(na.omit(waterYear)),
+    wy_doy = max(wy_doy, na.rm = TRUE),
+    cond_uScm = first(na.omit(cond_uScm)),
+    water_temp_C = first(na.omit(water_temp_C)),
+    Flow = first(na.omit(Flow)),
+    cumulative_dis = first(na.omit(cumulative_dis)),
+    .groups = "drop"
+  )
+
+# Add Ice data to create the three data frames you are going to work with 
+met_data_full_timeseries <- full_join(ice_only, met_only)
+hydro_data_full_timeseries <- full_join(ice_only, hydro_only_fixed)
+sink_data_full_timeseries <- full_join(hydro_data_full_timeseries, met_data_full_timeseries)
+
+# Trim data frames to only spring and only since 2014
+met_data <- filter_by_year_and_doy(met_data_full_timeseries, c(1,76))  %>% # October 1 - December 15
   filter(waterYear >= 2014)
 
-# Met data from Bear Lake SnoTel site 322
-full_met <- read.csv("derived_data/00_snotel_322.csv")
-full_met$date <- as.POSIXct(full_met$date)
+hydro_data <- filter_by_year_and_doy(hydro_data_full_timeseries, c(1,76))  %>% # October 1 - December 15
+  filter(waterYear >= 2014)
+
+sink_data <- filter_by_year_and_doy(sink_data_full_timeseries, c(1,76))  %>% # October 1 - December 15
+  filter(waterYear >= 2014 & waterYear <= 2024)
+
 # __________________________________________________
 # 01. For loop for Leave one Year out Accuracy for Logistic Regression -- Ice ON
 # __________________________________________________
 
-# # Pull in ice on data:
-ice_on_data <- read.csv("Input_Files/met_hydro_winter_ice_on.csv")
+# # # Pull in ice on data:
+# ice_on_data <- read.csv("Input_Files/met_hydro_winter_ice_on.csv")
 
 # initialize i to step through for loop 
 i <- 3 
 
 
 # create an object that holds all of the waterYears in the full dataset 
-years <- unique(ice_on_data$waterYear) 
+years <- unique(sink_data$waterYear) 
 
 # Create an obect to hold the out of sample accuracy for each year 
 ice_on_accuracy_log <- rep(NA, length(years))
@@ -46,12 +82,12 @@ for (i in 1:length(years)){
   
   # seperate into train and test data 
   test_year <- years[i]
-  training_data <- ice_on_data[ice_on_data$waterYear != test_year, ]
-  test_data <- ice_on_data[ice_on_data$waterYear == test_year, ]
+  training_data <- sink_data[sink_data$waterYear != test_year, ]
+  test_data <- sink_data[sink_data$waterYear == test_year, ]
   
   
   # Train a logistic regression model on training data 
-  trained_log_model <- glm(ice_or_no ~ temp_7day_mean + z_cond_uScm, 
+  trained_log_model <- glm(ice_presence ~ temp_7day_mean + z_cond_uScm, ############# I'm here. Need to change variables
                            data = training_data, 
                            family = binomial)
   
