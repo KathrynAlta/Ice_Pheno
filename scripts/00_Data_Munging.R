@@ -32,7 +32,13 @@ source(here::here("source", "00_functions.R"))
             wy_doy = hydro.day(Date), 
             calYear = substring(Date, 1, 4)
           ) %>% 
-          select("Date", "calYear", "waterYear", "wy_doy", "ice_presence")
+          select("Date", "calYear", "waterYear", "wy_doy", "ice_presence")%>%
+          rename(
+              ice = ice_presence # rename ice to shorten 
+            ) %>%
+            mutate(
+              Date = as.POSIXct(Date)
+            ) 
 
     # # Plot to sanity check 
     #     head(ice_binary)
